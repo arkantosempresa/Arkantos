@@ -2952,7 +2952,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <!-- Core Logic Loader -->
-  <script src="src/app.js"></script>
+  <script src="src/app.js?v=9"></script>
 
   <!-- Script de Inicialización PWA Service Worker e Instalación App Web -->
   <script>
@@ -2960,8 +2960,11 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('Service Worker ARKANTOS PWA listo:', reg))
+        navigator.serviceWorker.register('./sw.js?v=9')
+          .then(reg => {
+            console.log('Service Worker ARKANTOS PWA listo:', reg);
+            reg.update();
+          })
           .catch(err => console.error('Error al registrar Service Worker:', err));
       });
     }

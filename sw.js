@@ -1,4 +1,4 @@
-const CACHE_NAME = 'arkantos-v8';
+const CACHE_NAME = 'arkantos-v9';
 const ASSETS = [
   './',
   './index.html',
@@ -8,12 +8,12 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
+  self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS);
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
@@ -32,14 +32,23 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+  // Red primero, si falla recurre al caché offline
   e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(e.request).catch(() => {
-        return caches.match('./index.html');
-      });
-    })
+    fetch(e.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && e.request.method === 'GET') {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(e.request, responseClone);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(e.request).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
+          return caches.match('./index.html');
+        });
+      })
   );
 });
