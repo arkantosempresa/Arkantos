@@ -2878,8 +2878,190 @@
           </div>
         </div>
 
+        <!-- BLOQUE DE ESTADO DE CUENTA Y SALDO ADEUDADO A LA APP EN EFECTIVO -->
+        <div class="bg-gradient-to-br from-slate-900 to-amber-955/40 border border-amber-500/30 rounded-2xl p-3.5 space-y-3 mt-2">
+          <div class="flex justify-between items-start">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <i data-lucide="calculator" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h4 class="text-xs font-black text-white uppercase tracking-wider">Estado de Cuenta con Arkantos</h4>
+                <p class="text-[9.5px] text-slate-400">Comisiones retenidas por pagos recibidos en efectivo</p>
+              </div>
+            </div>
+            <span id="lbl-pro-debt-badge" class="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+              Al Día ($0)
+            </span>
+          </div>
+
+          <div class="bg-slate-950/80 rounded-xl p-3 border border-slate-850 flex justify-between items-center">
+            <div>
+              <span class="text-[9px] font-bold text-slate-400 uppercase block">Saldo Adeudado a la App (15% Efectivo):</span>
+              <strong id="lbl-pro-cash-debt" class="text-base font-black text-amber-400">$0</strong>
+            </div>
+            <button type="button" id="btn-pay-app-debt" onclick="window.openPayAppDebtModal()" class="bg-brand-gold-500 hover:bg-brand-gold-600 active:scale-95 text-slate-950 font-black px-3 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow-lg shadow-brand-gold-500/10 cursor-pointer">
+              <i data-lucide="credit-card" class="w-3.5 h-3.5"></i>
+              <span>Pagar Deuda a la App</span>
+            </button>
+          </div>
+
+          <div class="flex items-start gap-1.5 text-[9px] text-slate-400 bg-slate-955 p-2 rounded-xl border border-slate-850/80">
+            <i data-lucide="info" class="w-3.5 h-3.5 text-brand-gold-500 shrink-0 mt-0.5"></i>
+            <span>
+              <strong>Información de Pago:</strong> Puedes abonar tu saldo adeudado ahora con tarjeta/Mercado Pago, o bien se descontará automáticamente en tu próximo cobro con tarjeta que realice un cliente.
+            </span>
+          </div>
+        </div>
+
       </div>
 
+    </div>
+  </div>
+
+  <!-- MODAL DE SELECCIÓN DE MÉTODO DE PAGO AL AGENDAR -->
+  <div id="payment-method-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[999999] hidden flex-col items-center justify-center p-4 transition-all duration-300 select-none">
+    <div class="bg-slate-955 border border-slate-800 w-full max-w-sm rounded-3xl p-5 sm:p-6 flex flex-col gap-4 shadow-2xl relative">
+      
+      <!-- Cabecera -->
+      <div class="flex justify-between items-center border-b border-slate-850 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-brand-gold-500/10 border border-brand-gold-500/30 flex items-center justify-center text-brand-gold-500">
+            <i data-lucide="wallet-cards" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-xs font-black text-white uppercase tracking-wider">Método de Pago</h3>
+            <p class="text-[10px] text-slate-400">Elige cómo abonar el servicio solicitado</p>
+          </div>
+        </div>
+        <button type="button" onclick="window.closePaymentMethodModal()" class="w-7 h-7 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+
+      <!-- Resumen del Servicio -->
+      <div class="bg-slate-900 border border-slate-850 rounded-2xl p-3 space-y-1.5">
+        <div class="flex justify-between items-center text-xs">
+          <span class="text-slate-400 font-semibold">Prestador:</span>
+          <strong id="pay-modal-pro-name" class="text-white font-bold">---</strong>
+        </div>
+        <div class="flex justify-between items-center text-xs">
+          <span class="text-slate-400 font-semibold">Fecha y Hora:</span>
+          <span id="pay-modal-datetime" class="text-slate-300 font-medium">---</span>
+        </div>
+        <div class="flex justify-between items-center text-xs border-t border-slate-850/80 pt-1.5 mt-1.5">
+          <span class="text-slate-300 font-extrabold uppercase">Monto Total a Pagar:</span>
+          <strong id="pay-modal-total-price" class="text-base font-black text-brand-gold-500">$0</strong>
+        </div>
+      </div>
+
+      <!-- Opciones de Selección de Pago -->
+      <div class="space-y-2.5">
+        <label class="text-[9.5px] font-black uppercase text-slate-400 tracking-wider block">Selecciona cómo deseas pagar:</label>
+        
+        <!-- OPCIÓN 1: TARJETA / MERCADO PAGO -->
+        <div id="option-pay-card" onclick="window.selectPaymentMethodOption('card')" class="payment-option-card bg-slate-900 border-2 border-brand-gold-500 p-3 rounded-2xl cursor-pointer transition-all flex items-start gap-3">
+          <div class="w-5 h-5 rounded-full border-2 border-brand-gold-500 bg-brand-gold-500 flex items-center justify-center text-slate-950 mt-0.5 shrink-0">
+            <i data-lucide="check" class="w-3 h-3 stroke-[3]"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-black text-white flex items-center gap-1.5">
+                💳 Tarjeta / Débito / Mercado Pago
+              </h4>
+              <span class="text-[8px] bg-brand-gold-500/15 text-brand-gold-500 border border-brand-gold-500/30 px-2 py-0.5 rounded-full font-bold">Cobro Digital</span>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1 leading-snug">
+              Cobro electrónico directo. El 15% de comisión se liquida a la app y el 85% se le acredita al prestador (descontando deuda adeudada si aplica).
+            </p>
+          </div>
+        </div>
+
+        <!-- OPCIÓN 2: EFECTIVO -->
+        <div id="option-pay-cash" onclick="window.selectPaymentMethodOption('cash')" class="payment-option-card bg-slate-900/60 border border-slate-850 p-3 rounded-2xl cursor-pointer transition-all flex items-start gap-3 opacity-80 hover:opacity-100">
+          <div class="w-5 h-5 rounded-full border-2 border-slate-700 bg-transparent flex items-center justify-center text-slate-950 mt-0.5 shrink-0">
+            <i data-lucide="check" class="w-3 h-3 stroke-[3] hidden"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-black text-white flex items-center gap-1.5">
+                💵 Pago en Efectivo
+              </h4>
+              <span class="text-[8px] bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">En Mano</span>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1 leading-snug">
+              Abonas el 100% en mano al profesional al finalizar el trabajo. La comisión del 15% se suma a la cuenta del prestador como saldo adeudado a la app.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botón de Confirmación -->
+      <button type="button" onclick="window.processFinalBookingWithPayment()" class="w-full bg-brand-gold-500 hover:bg-brand-gold-600 active:scale-95 text-slate-950 font-black py-3 rounded-2xl text-xs transition shadow-lg shadow-brand-gold-500/15 flex items-center justify-center gap-2 mt-1 cursor-pointer">
+        <i data-lucide="shield-check" class="w-4 h-4"></i>
+        <span>Confirmar y Agendar Turno</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL DE PAGAR DEUDA A LA APP POR EL PROFESIONAL -->
+  <div id="pay-app-debt-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[999999] hidden flex-col items-center justify-center p-4 transition-all duration-300 select-none">
+    <div class="bg-slate-955 border border-slate-800 w-full max-w-sm rounded-3xl p-5 sm:p-6 flex flex-col gap-4 shadow-2xl relative">
+      
+      <!-- Cabecera -->
+      <div class="flex justify-between items-center border-b border-slate-850 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <i data-lucide="credit-card" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-xs font-black text-white uppercase tracking-wider">Abonar Comisión Adeudada</h3>
+            <p class="text-[10px] text-slate-400">Saldar saldo pendiente con Arkantos</p>
+          </div>
+        </div>
+        <button type="button" onclick="window.closePayAppDebtModal()" class="w-7 h-7 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+
+      <div class="bg-slate-900 border border-amber-500/30 rounded-2xl p-3.5 text-center space-y-1">
+        <span class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">Monto Adeudado Actual:</span>
+        <strong id="pay-app-modal-amount" class="text-2xl font-black text-amber-400 block">$0</strong>
+        <p class="text-[9.5px] text-slate-400 italic">Comisiones acumuladas por cobros recibidos en efectivo</p>
+      </div>
+
+      <!-- Formulario de Pago Simulado -->
+      <div class="space-y-3">
+        <label class="text-[9.5px] font-black uppercase text-slate-400 tracking-wider block">Selecciona Medio de Pago:</label>
+        
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="window.selectProPaymentMethod('mp')" id="btn-pro-pay-mp" class="bg-slate-900 border-2 border-brand-gold-500 p-2.5 rounded-xl text-center flex flex-col items-center gap-1 transition cursor-pointer">
+            <span class="text-[10px] font-extrabold text-white">Mercado Pago / CVU</span>
+            <span class="text-[8px] text-slate-400">Transferencia Instantánea</span>
+          </button>
+
+          <button type="button" onclick="window.selectProPaymentMethod('card')" id="btn-pro-pay-card" class="bg-slate-900/60 border border-slate-850 p-2.5 rounded-xl text-center flex flex-col items-center gap-1 transition opacity-70 hover:opacity-100 cursor-pointer">
+            <span class="text-[10px] font-extrabold text-white">Tarjeta de Débito/Crédito</span>
+            <span class="text-[8px] text-slate-400">Pago Directo</span>
+          </button>
+        </div>
+
+        <div class="bg-slate-950 border border-slate-850 p-3 rounded-2xl text-[10px] text-slate-300 space-y-1.5">
+          <div class="flex justify-between">
+            <span class="text-slate-400">Destinatario:</span>
+            <strong class="text-white font-bold">Arkantos Servicios S.A.</strong>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Concepto:</span>
+            <span class="text-brand-gold-500 font-semibold">Liquidación de Comisión 15%</span>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" onclick="window.processProDebtPayment()" class="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 font-black py-3 rounded-2xl text-xs transition shadow-lg shadow-emerald-500/15 flex items-center justify-center gap-2 cursor-pointer">
+        <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+        <span>Abonar y Quedar al Día ($0)</span>
+      </button>
     </div>
   </div>
 
@@ -2952,7 +3134,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <!-- Core Logic Loader -->
-  <script src="src/app.js?v=9"></script>
+  <script src="src/app.js?v=11"></script>
 
   <!-- Script de Inicialización PWA Service Worker e Instalación App Web -->
   <script>
@@ -2960,7 +3142,7 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=9')
+        navigator.serviceWorker.register('./sw.js?v=11')
           .then(reg => {
             console.log('Service Worker ARKANTOS PWA listo:', reg);
             reg.update();

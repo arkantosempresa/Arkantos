@@ -2080,50 +2080,7 @@ function confirmBooking() {
     return;
   }
 
-  const pro = state.professionals.find(p => p.id === proId);
-  const basePrice = pro.price;
-  const commission = Math.round(basePrice * 0.15);
-  const total = basePrice + commission;
-
-  const newBooking = {
-    id: Date.now(),
-    proId: proId,
-    proName: pro.name,
-    clientEmail: state.currentUser ? state.currentUser.email : "",
-    clientName: state.currentUser ? state.currentUser.name : "",
-    category: pro.category,
-    date: day,
-    time: time,
-    price: basePrice,
-    total: total,
-    status: "Pendiente"
-  };
-
-  state.bookings.push(newBooking);
-  saveToLocalStorage();
-  closeBookingSheet();
-
-  showToast(
-    "¡Turno Agendado con éxito!", 
-    `Tu turno con ${pro.name} el día ${day} a las ${time} hs fue enviado para confirmación.`, 
-    "success"
-  );
-
-  // Renderizar la lista de turnos contratados del cliente de inmediato
-  renderClientBookings();
-
-  // Ejecutar verificación de recordatorios de turno
-  try {
-    checkBookingReminders();
-  } catch (e) {
-    console.error("Error al verificar recordatorios:", e);
-  }
-
-  const currentPro = getCurrentPro();
-  if (proId === currentPro.id) {
-    renderPendingBookings();
-    renderProCalendar();
-  }
+  window.openPaymentMethodModal();
 }
 
 // --- PORTAL SOCIO (PROFESIONAL) ---
@@ -3631,10 +3588,207 @@ window.finalizeBooking = (bookingId) => {
   const booking = state.bookings.find(b => String(b.id) === String(bookingId));
   if (!booking) return;
   booking.status = "Finalizado";
+
+  const pro = state.professionals.find(p => p.id === booking.proId);
+  if (pro) {
+    if (typeof pro.cashDebt === 'undefined') pro.cashDebt = 0;
+    const price = booking.price || booking.total || 0;
+    const commission = Math.round(price * 0.15);
+
+    if (booking.paymentMethod === 'cash') {
+      pro.cashDebt += commission;
+      showToast("💵 Trabajo Finalizado (Efectivo)", `Cobro de $${price.toLocaleString('es-AR')} en mano. +$${commission.toLocaleString('es-AR')} de comisión adeudada a la app.`, "success");
+    } else {
+      let debtDeducted = 0;
+      if (pro.cashDebt > 0) {
+        debtDeducted = Math.min(pro.cashDebt, price - commission);
+        pro.cashDebt -= debtDeducted;
+      }
+      if (debtDeducted > 0) {
+        showToast("💳 Trabajo Finalizado (Tarjeta)", `Cobro digital. Se descontaron $${debtDeducted.toLocaleString('es-AR')} de tu saldo adeudado con Arkantos.`, "success");
+      } else {
+        showToast("💳 Trabajo Finalizado (Tarjeta)", `Cobro digital acreditado. 15% de comisión ($${commission.toLocaleString('es-AR')}) debitado a la app.`, "success");
+      }
+    }
+  }
+
   saveToLocalStorage();
-  showToast("🎉 Trabajo Finalizado", `Servicio #${booking.id} completado. Se acumuló a tu facturación.`, "success");
   updateDashboardMetrics();
   renderProCalendar();
+};
+
+state.activeSelectedPaymentMethod = 'card';
+
+window.openPaymentMethodModal = () => {
+  const { proId, day, time } = state.selectedBooking;
+  const pro = state.professionals.find(p => p.id === proId);
+  if (!pro) return;
+
+  const basePrice = pro.price;
+  const commission = Math.round(basePrice * 0.15);
+  const total = basePrice + commission;
+
+  document.getElementById('pay-modal-pro-name').innerText = pro.name;
+  document.getElementById('pay-modal-datetime').innerText = `${day} (${time} hs)`;
+  document.getElementById('pay-modal-total-price').innerText = `$${total.toLocaleString('es-AR')}`;
+
+  window.selectPaymentMethodOption('card');
+
+  const modal = document.getElementById('payment-method-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    try { lucide.createIcons(); } catch (e) {}
+  }
+};
+
+window.closePaymentMethodModal = () => {
+  const modal = document.getElementById('payment-method-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+};
+
+window.selectPaymentMethodOption = (method) => {
+  state.activeSelectedPaymentMethod = method;
+  const cardOpt = document.getElementById('option-pay-card');
+  const cashOpt = document.getElementById('option-pay-cash');
+
+  if (!cardOpt || !cashOpt) return;
+
+  if (method === 'card') {
+    cardOpt.className = "payment-option-card bg-slate-900 border-2 border-brand-gold-500 p-3 rounded-2xl cursor-pointer transition-all flex items-start gap-3 shadow-md shadow-brand-gold-500/10";
+    cashOpt.className = "payment-option-card bg-slate-900/60 border border-slate-850 p-3 rounded-2xl cursor-pointer transition-all flex items-start gap-3 opacity-70 hover:opacity-100";
+    
+    const cardCheck = cardOpt.querySelector('i');
+    const cashCheck = cashOpt.querySelector('i');
+    if (cardCheck) cardCheck.classList.remove('hidden');
+    if (cashCheck) cashCheck.classList.add('hidden');
+  } else {
+    cashOpt.className = "payment-option-card bg-slate-900 border-2 border-amber-500 p-3 rounded-2xl cursor-pointer transition-all flex items-start gap-3 shadow-md shadow-amber-500/10";
+    cardOpt.className = "payment-option-card bg-slate-900/60 border border-slate-850 p-3 rounded-2xl cursor-pointer transition-all flex items-start gap-3 opacity-70 hover:opacity-100";
+    
+    const cardCheck = cardOpt.querySelector('i');
+    const cashCheck = cashOpt.querySelector('i');
+    if (cashCheck) cashCheck.classList.remove('hidden');
+    if (cardCheck) cardCheck.classList.add('hidden');
+  }
+};
+
+window.processFinalBookingWithPayment = () => {
+  const { proId, day, time } = state.selectedBooking;
+  if (!proId || !day || !time) return;
+
+  const pro = state.professionals.find(p => p.id === proId);
+  if (!pro) return;
+
+  const basePrice = pro.price;
+  const commission = Math.round(basePrice * 0.15);
+  const total = basePrice + commission;
+  const method = state.activeSelectedPaymentMethod || 'card';
+
+  const newBooking = {
+    id: Date.now(),
+    proId: proId,
+    proName: pro.name,
+    clientEmail: state.currentUser ? state.currentUser.email : "",
+    clientName: state.currentUser ? state.currentUser.name : "",
+    category: pro.category,
+    date: day,
+    time: time,
+    price: basePrice,
+    total: total,
+    status: "Pendiente",
+    paymentMethod: method,
+    paymentStatus: method === 'card' ? 'Paid' : 'Pending'
+  };
+
+  state.bookings.push(newBooking);
+  saveToLocalStorage();
+  window.closePaymentMethodModal();
+  closeBookingSheet();
+
+  const methodText = method === 'card' ? '💳 Tarjeta/Mercado Pago' : '💵 Efectivo en Mano';
+
+  showToast(
+    "¡Turno Agendado!", 
+    `Turno enviado a ${pro.name} (${methodText}).`, 
+    "success"
+  );
+
+  renderClientBookings();
+
+  try {
+    checkBookingReminders();
+  } catch (e) {}
+
+  const currentPro = getCurrentPro();
+  if (proId === currentPro.id) {
+    renderPendingBookings();
+    renderProCalendar();
+  }
+};
+
+window.openPayAppDebtModal = () => {
+  const pro = getCurrentPro();
+  if (!pro) return;
+  const debt = pro.cashDebt || 0;
+
+  const elModalAmount = document.getElementById('pay-app-modal-amount');
+  if (elModalAmount) elModalAmount.innerText = `$${debt.toLocaleString('es-AR')}`;
+
+  const modal = document.getElementById('pay-app-debt-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    try { lucide.createIcons(); } catch (e) {}
+  }
+};
+
+window.closePayAppDebtModal = () => {
+  const modal = document.getElementById('pay-app-debt-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+};
+
+window.selectProPaymentMethod = (method) => {
+  const btnMp = document.getElementById('btn-pro-pay-mp');
+  const btnCard = document.getElementById('btn-pro-pay-card');
+  if (!btnMp || !btnCard) return;
+
+  if (method === 'mp') {
+    btnMp.className = "bg-slate-900 border-2 border-brand-gold-500 p-2.5 rounded-xl text-center flex flex-col items-center gap-1 transition cursor-pointer";
+    btnCard.className = "bg-slate-900/60 border border-slate-850 p-2.5 rounded-xl text-center flex flex-col items-center gap-1 transition opacity-70 hover:opacity-100 cursor-pointer";
+  } else {
+    btnCard.className = "bg-slate-900 border-2 border-brand-gold-500 p-2.5 rounded-xl text-center flex flex-col items-center gap-1 transition cursor-pointer";
+    btnMp.className = "bg-slate-900/60 border border-slate-850 p-2.5 rounded-xl text-center flex flex-col items-center gap-1 transition opacity-70 hover:opacity-100 cursor-pointer";
+  }
+};
+
+window.processProDebtPayment = () => {
+  const pro = getCurrentPro();
+  if (!pro) return;
+  const debt = pro.cashDebt || 0;
+
+  if (debt <= 0) {
+    showToast("✅ Cuenta al Día", "No tienes deudas pendientes con Arkantos.", "info");
+    window.closePayAppDebtModal();
+    return;
+  }
+
+  pro.cashDebt = 0;
+  saveToLocalStorage();
+  window.closePayAppDebtModal();
+  renderProUberBillingData();
+
+  showToast(
+    "🎉 Pago Recibido",
+    `Has abonado $${debt.toLocaleString('es-AR')} de comisión a Arkantos. Tu estado de cuenta quedó en $0 (Al Día).`,
+    "success"
+  );
 };
 
 window.openProBillingModal = (timeframe = 'day') => {
@@ -3843,6 +3997,21 @@ function renderProUberBillingData(selectedTimeframe) {
         `;
         historyList.appendChild(item);
       });
+    }
+  }
+
+  const proDebt = pro.cashDebt || 0;
+  const elCashDebt = document.getElementById('lbl-pro-cash-debt');
+  const elDebtBadge = document.getElementById('lbl-pro-debt-badge');
+
+  if (elCashDebt) elCashDebt.innerText = `$${proDebt.toLocaleString('es-AR')}`;
+  if (elDebtBadge) {
+    if (proDebt > 0) {
+      elDebtBadge.innerText = `Saldo Adeudado: -$${proDebt.toLocaleString('es-AR')}`;
+      elDebtBadge.className = "text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400";
+    } else {
+      elDebtBadge.innerText = "Al Día ($0)";
+      elDebtBadge.className = "text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400";
     }
   }
 
