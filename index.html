@@ -1013,8 +1013,8 @@
       </div>
 
       <!-- SHEET / MODAL TURNOS -->
-      <div id="booking-sheet" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-[2000] hidden transition-opacity duration-300 flex items-end">
-        <div class="w-full bg-slate-900 rounded-t-[32px] border-t border-slate-800 p-5 flex flex-col gap-4 max-h-[85%] overflow-y-auto no-scrollbar shadow-2xl">
+      <div id="booking-sheet" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-[2500] hidden transition-opacity duration-300 flex items-end">
+        <div class="w-full bg-slate-900 rounded-t-[32px] border-t border-slate-800 p-5 pb-10 flex flex-col gap-4 max-h-[85%] overflow-y-auto no-scrollbar shadow-2xl">
           <div class="flex justify-between items-start">
             <div class="flex items-center gap-3">
               <img id="booking-pro-avatar" class="w-12 h-12 rounded-full object-cover border border-slate-700 bg-slate-950">
@@ -3134,7 +3134,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <!-- Core Logic Loader -->
-  <script src="src/app.js?v=11"></script>
+  <script src="src/app.js?v=12"></script>
 
   <!-- Script de Inicialización PWA Service Worker e Instalación App Web -->
   <script>
@@ -3142,7 +3142,7 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=11')
+        navigator.serviceWorker.register('./sw.js?v=12')
           .then(reg => {
             console.log('Service Worker ARKANTOS PWA listo:', reg);
             reg.update();
