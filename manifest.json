@@ -1,0 +1,27 @@
+{
+  "id": "com.arkantos.app",
+  "name": "ARKANTOS - Servicios Locales",
+  "short_name": "ARKANTOS",
+  "description": "Plataforma transaccional de contratación inmediata de servicios profesionales en Posadas",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "scope": "./",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "./logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
