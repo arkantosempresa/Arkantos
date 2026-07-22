@@ -505,6 +505,121 @@ function loadFromLocalStorage() {
   });
 }
 
+// --- CONFIGURACIÓN E INICIALIZACIÓN DE FIREBASE EN TIEMPO REAL ---
+const firebaseConfig = {
+  apiKey: "AIzaSyDroiA-zVWsauFDXFWUfY5H0gxmKOo67k4",
+  authDomain: "arkantos-app.firebaseapp.com",
+  projectId: "arkantos-app",
+  storageBucket: "arkantos-app.firebasestorage.app",
+  messagingSenderId: "304387636991",
+  appId: "1:304387636991:web:dba6e82119a4205821d6ca",
+  measurementId: "G-VRFRERG1KB"
+};
+
+let firebaseApp = null;
+let firebaseDb = null;
+let firebaseFirestore = null;
+let isRemoteSyncing = false;
+
+function initFirebaseRealtimeSync() {
+  if (typeof firebase === 'undefined') return;
+
+  try {
+    if (!firebase.apps || !firebase.apps.length) {
+      firebaseApp = firebase.initializeApp(firebaseConfig);
+    } else {
+      firebaseApp = firebase.app();
+    }
+
+    try { firebaseDb = firebase.database(); } catch(e) {}
+    try { firebaseFirestore = firebase.firestore(); } catch(e) {}
+
+    console.log("🔥 Firebase Realtime Sync inicializado.");
+
+    if (firebaseDb) {
+      const dataRef = firebaseDb.ref('arkantos_global_state');
+      dataRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          applyRemoteSyncData(data);
+        }
+      }, (err) => {
+        console.warn("Realtime DB aviso/permisos:", err.message);
+      });
+    }
+
+    if (firebaseFirestore) {
+      firebaseFirestore.collection('app').doc('global_state').onSnapshot((doc) => {
+        if (doc.exists) {
+          applyRemoteSyncData(doc.data());
+        }
+      }, (err) => {
+        console.warn("Firestore aviso/permisos:", err.message);
+      });
+    }
+
+  } catch (err) {
+    console.error("Error al iniciar Firebase:", err);
+  }
+}
+
+function applyRemoteSyncData(remoteData) {
+  if (!remoteData) return;
+  isRemoteSyncing = true;
+
+  try {
+    if (Array.isArray(remoteData.users)) state.users = remoteData.users;
+    if (Array.isArray(remoteData.professionals)) state.professionals = remoteData.professionals;
+    if (Array.isArray(remoteData.bookings)) state.bookings = remoteData.bookings;
+    if (Array.isArray(remoteData.chats)) state.chats = remoteData.chats;
+    if (Array.isArray(remoteData.favorites)) state.favorites = remoteData.favorites;
+
+    localStorage.setItem('arkantos_users', JSON.stringify(state.users));
+    localStorage.setItem('arkantos_professionals', JSON.stringify(state.professionals));
+    localStorage.setItem('arkantos_bookings', JSON.stringify(state.bookings));
+    localStorage.setItem('arkantos_chats', JSON.stringify(state.chats));
+    localStorage.setItem('arkantos_favorites', JSON.stringify(state.favorites));
+
+    try { if (typeof renderProfessionals === 'function') renderProfessionals(); } catch(e) {}
+    try { if (typeof renderInstantProviders === 'function') renderInstantProviders(); } catch(e) {}
+    try { if (typeof renderClientBookings === 'function') renderClientBookings(); } catch(e) {}
+    try { if (typeof renderProCalendar === 'function') renderProCalendar(); } catch(e) {}
+    try { if (typeof renderAdminUsers === 'function') renderAdminUsers(); } catch(e) {}
+    try { if (typeof checkCurrentBannedStatus === 'function') checkCurrentBannedStatus(); } catch(e) {}
+    try { if (typeof renderActiveChat === 'function') renderActiveChat(); } catch(e) {}
+
+  } catch (e) {
+    console.error("Error aplicando sync remoto:", e);
+  } finally {
+    isRemoteSyncing = false;
+  }
+}
+
+function pushStateToFirebase() {
+  if (isRemoteSyncing) return;
+
+  const payload = {
+    users: state.users,
+    professionals: state.professionals,
+    bookings: state.bookings,
+    chats: state.chats,
+    favorites: state.favorites,
+    lastUpdated: Date.now()
+  };
+
+  if (firebaseDb) {
+    firebaseDb.ref('arkantos_global_state').set(payload).catch(e => console.warn("Sync RTDB:", e.message));
+  }
+
+  if (firebaseFirestore) {
+    firebaseFirestore.collection('app').doc('global_state').set(payload).catch(e => console.warn("Sync Firestore:", e.message));
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(initFirebaseRealtimeSync, 300);
+});
+
 function saveToLocalStorage() {
   localStorage.setItem('arkantos_users', JSON.stringify(state.users));
   localStorage.setItem('arkantos_professionals', JSON.stringify(state.professionals));
@@ -515,6 +630,8 @@ function saveToLocalStorage() {
   localStorage.setItem('arkantos_is_authenticated', state.isAuthenticated ? 'true' : 'false');
   localStorage.setItem('arkantos_current_user', JSON.stringify(state.currentUser));
   updateChatBadges();
+
+  pushStateToFirebase();
 }
 
 // --- LÓGICA DE CELULAR Y RECUPERACIÓN DE CONTRASEÑA ---
