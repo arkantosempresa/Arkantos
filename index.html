@@ -983,7 +983,7 @@
               <i data-lucide="star" class="w-4.5 h-4.5 text-brand-gold-500 fill-brand-gold-500/20"></i>
               <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">Calificar Prestador</h3>
             </div>
-            <button id="btn-close-review-modal" class="text-slate-400 hover:text-slate-250 transition">
+            <button id="btn-close-review-modal" class="text-slate-400 hover:text-slate-250 transition cursor-pointer">
               <i data-lucide="x" class="w-4 h-4"></i>
             </button>
           </div>
@@ -992,12 +992,38 @@
             <div class="text-center bg-slate-950/45 p-3 rounded-xl border border-slate-850">
               <span class="text-[10px] font-bold text-slate-300 block mb-1.5 uppercase tracking-wider">Calidad del Trabajo (Reputación)</span>
               <div class="flex justify-center gap-2" id="review-stars-quality">
-                <button class="review-star-btn text-slate-650 hover:text-brand-gold-500 transition text-2xl" data-score="1">★</button>
-                <button class="review-star-btn text-slate-650 hover:text-brand-gold-500 transition text-2xl" data-score="2">★</button>
-                <button class="review-star-btn text-slate-650 hover:text-brand-gold-500 transition text-2xl" data-score="3">★</button>
-                <button class="review-star-btn text-slate-650 hover:text-brand-gold-500 transition text-2xl" data-score="4">★</button>
-                <button class="review-star-btn text-slate-650 hover:text-brand-gold-500 transition text-2xl" data-score="5">★</button>
+                <button class="review-star-btn text-slate-650 hover:text-brand-gold-500 transition text-2xl cursor-pointer" data-score="1">★</button>
+                <button class="review-star-btn text-slate-650 hover:text-brand-gold-500 transition text-2xl cursor-pointer" data-score="2">★</button>
+                <button class="review-star-btn text-slate-650 hover:text-brand-gold-500 transition text-2xl cursor-pointer" data-score="3">★</button>
+                <button class="review-star-btn text-slate-650 hover:text-brand-gold-500 transition text-2xl cursor-pointer" data-score="4">★</button>
+                <button class="review-star-btn text-slate-650 hover:text-brand-gold-500 transition text-2xl cursor-pointer" data-score="5">★</button>
               </div>
+            </div>
+
+            <!-- SECCIÓN DE PROPINA (SOLO DISPONIBLE PARA PAGOS CON TARJETA) -->
+            <div id="review-tip-container" class="hidden text-center bg-slate-950/45 p-3 rounded-xl border border-slate-850 space-y-2">
+              <span class="text-[10px] font-bold text-slate-300 block uppercase tracking-wider">¿Deseas dejar una propina?</span>
+              <p class="text-[8.5px] text-slate-500">100% destinada al profesional, debitada de tu tarjeta.</p>
+              
+              <div class="grid grid-cols-4 gap-1.5 mt-1.5" id="tip-options-row">
+                <button type="button" onclick="window.selectTipAmount(0, this)" class="btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-slate-900 border border-brand-gold-500/25 text-brand-gold-500 transition-all select-none cursor-pointer">
+                  Sin Propina
+                </button>
+                <button type="button" onclick="window.selectTipAmount(500, this)" class="btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-slate-950 border border-slate-850 text-slate-400 hover:text-white transition-all select-none cursor-pointer">
+                  +$500
+                </button>
+                <button type="button" onclick="window.selectTipAmount(1000, this)" class="btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-slate-950 border border-slate-850 text-slate-400 hover:text-white transition-all select-none cursor-pointer">
+                  +$1.000
+                </button>
+                <button type="button" onclick="window.selectTipAmount(2000, this)" class="btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-slate-950 border border-slate-850 text-slate-400 hover:text-white transition-all select-none cursor-pointer">
+                  +$2.000
+                </button>
+              </div>
+
+              <!-- Opción de otro monto -->
+              <button type="button" id="btn-custom-tip" onclick="window.promptCustomTip()" class="text-[9px] text-brand-gold-500/90 font-bold hover:underline block mx-auto pt-1 cursor-pointer">
+                Elegir otro monto...
+              </button>
             </div>
 
             <div>
@@ -1006,7 +1032,7 @@
             </div>
           </div>
 
-          <button id="btn-submit-review" class="w-full bg-brand-gold-500 hover:bg-brand-gold-600 text-slate-950 font-bold py-2.5 rounded-xl text-xs transition shadow-lg shadow-brand-gold-500/10">
+          <button id="btn-submit-review" class="w-full bg-brand-gold-500 hover:bg-brand-gold-600 text-slate-950 font-bold py-2.5 rounded-xl text-xs transition shadow-lg shadow-brand-gold-500/10 cursor-pointer">
             ENVIAR CALIFICACIÓN
           </button>
         </div>
@@ -2845,22 +2871,32 @@
             <span id="lbl-billing-active-count" class="text-[9px] font-extrabold text-brand-gold-500 bg-brand-gold-500/10 border border-brand-gold-500/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">0 Trabajos</span>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
-            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-850">
-              <span class="text-[9px] text-slate-500 font-extrabold uppercase block">Ganancia Neta (85%):</span>
-              <span id="lbl-billing-active-net" class="text-xl font-black text-emerald-400">$0</span>
-              <span class="text-[8.5px] text-slate-500 font-semibold block mt-0.5">Ingreso disponible</span>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-850">
+              <span class="text-[8px] text-slate-500 font-extrabold uppercase block truncate">Ganancia Neta (85%):</span>
+              <span id="lbl-billing-active-net" class="text-base font-black text-emerald-400">$0</span>
+              <span class="text-[7.5px] text-slate-500 font-semibold block mt-0.5">Ingreso disponible</span>
             </div>
-            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-850">
-              <span class="text-[9px] text-slate-500 font-extrabold uppercase block">Comisión Arkantos (15%):</span>
-              <span id="lbl-billing-active-comision" class="text-xl font-black text-brand-gold-500">-$0</span>
-              <span class="text-[8.5px] text-slate-500 font-semibold block mt-0.5">Retención de la App</span>
+            <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-850">
+              <span class="text-[8px] text-slate-500 font-extrabold uppercase block truncate">Comisión (15%):</span>
+              <span id="lbl-billing-active-comision" class="text-base font-black text-brand-gold-500">-$0</span>
+              <span class="text-[7.5px] text-slate-500 font-semibold block mt-0.5">Retención App</span>
+            </div>
+            <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-850">
+              <span class="text-[8px] text-slate-500 font-extrabold uppercase block truncate">Propinas (100%):</span>
+              <span id="lbl-billing-active-tips" class="text-base font-black text-blue-400">$0</span>
+              <span class="text-[7.5px] text-slate-500 font-semibold block mt-0.5">Extra del cliente</span>
             </div>
           </div>
 
           <div class="bg-slate-950/90 p-2.5 rounded-xl border border-slate-850 flex justify-between items-center text-xs">
-            <span class="text-slate-400 text-[10px]">Facturación Bruta Total:</span>
-            <span id="lbl-billing-active-gross" class="font-extrabold text-white">$0</span>
+            <span class="text-slate-400 text-[10px] font-bold">Total Neto + Propinas (Tu Dinero):</span>
+            <span id="lbl-billing-active-total-takehome" class="font-black text-emerald-400 text-sm">$0</span>
+          </div>
+
+          <div class="bg-slate-950/40 p-2 rounded-xl border border-slate-900 flex justify-between items-center text-[10px]">
+            <span class="text-slate-500">Facturación Bruta (Servicios):</span>
+            <span id="lbl-billing-active-gross" class="font-bold text-slate-400">$0</span>
           </div>
         </div>
 
@@ -3134,7 +3170,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <!-- Core Logic Loader -->
-  <script src="src/app.js?v=13"></script>
+  <script src="src/app.js?v=14"></script>
 
   <!-- Script de Inicialización PWA Service Worker e Instalación App Web -->
   <script>
@@ -3142,7 +3178,7 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=13')
+        navigator.serviceWorker.register('./sw.js?v=14')
           .then(reg => {
             console.log('Service Worker ARKANTOS PWA listo:', reg);
             reg.update();

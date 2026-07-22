@@ -3860,14 +3860,16 @@ function renderProUberBillingData(selectedTimeframe) {
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  let dayAmount = 0, dayCount = 0, dayBookings = [];
-  let weekAmount = 0, weekCount = 0, weekBookings = [];
-  let monthAmount = 0, monthCount = 0, monthBookings = [];
-  let totalGross = 0;
+  let dayAmount = 0, dayCount = 0, dayBookings = [], dayTips = 0;
+  let weekAmount = 0, weekCount = 0, weekBookings = [], weekTips = 0;
+  let monthAmount = 0, monthCount = 0, monthBookings = [], monthTips = 0;
+  let totalGross = 0, totalTips = 0;
 
   proBookings.forEach(b => {
     const price = b.price || b.total || 0;
+    const tip = b.tip || 0;
     totalGross += price;
+    totalTips += tip;
 
     let bDate = new Date();
     try {
@@ -3887,22 +3889,31 @@ function renderProUberBillingData(selectedTimeframe) {
     
     if (bDateStr === todayStr) {
       dayAmount += price;
+      dayTips += tip;
       dayCount++;
       dayBookings.push(b);
     }
 
     if (!isNaN(bDate.getTime()) && bDate >= startOfWeek) {
       weekAmount += price;
+      weekTips += tip;
       weekCount++;
       weekBookings.push(b);
     }
 
     if (!isNaN(bDate.getTime()) && bDate >= startOfMonth) {
       monthAmount += price;
+      monthTips += tip;
       monthCount++;
       monthBookings.push(b);
     }
   });
+
+  // Calcular neto y ganancias totales de bolsillo (Neto + Propinas) para cada botón de la pestaña
+  const dayTakeHome = Math.round(dayAmount * 0.85) + dayTips;
+  const weekTakeHome = Math.round(weekAmount * 0.85) + weekTips;
+  const monthTakeHome = Math.round(monthAmount * 0.85) + monthTips;
+  const totalTakeHome = Math.round(totalGross * 0.85) + totalTips;
 
   // Actualizar valores en los 4 botones de las pestañas
   const tabDayVal = document.getElementById('lbl-billing-tab-day-val');
@@ -3910,10 +3921,10 @@ function renderProUberBillingData(selectedTimeframe) {
   const tabMonthVal = document.getElementById('lbl-billing-tab-month-val');
   const tabAllVal = document.getElementById('lbl-billing-tab-all-val');
 
-  if (tabDayVal) tabDayVal.innerText = `$${dayAmount.toLocaleString('es-AR')}`;
-  if (tabWeekVal) tabWeekVal.innerText = `$${weekAmount.toLocaleString('es-AR')}`;
-  if (tabMonthVal) tabMonthVal.innerText = `$${monthAmount.toLocaleString('es-AR')}`;
-  if (tabAllVal) tabAllVal.innerText = `$${totalGross.toLocaleString('es-AR')}`;
+  if (tabDayVal) tabDayVal.innerText = `$${dayTakeHome.toLocaleString('es-AR')}`;
+  if (tabWeekVal) tabWeekVal.innerText = `$${weekTakeHome.toLocaleString('es-AR')}`;
+  if (tabMonthVal) tabMonthVal.innerText = `$${monthTakeHome.toLocaleString('es-AR')}`;
+  if (tabAllVal) tabAllVal.innerText = `$${totalTakeHome.toLocaleString('es-AR')}`;
 
   // Resaltar la pestaña activa
   const tabs = [
@@ -3936,27 +3947,32 @@ function renderProUberBillingData(selectedTimeframe) {
 
   // Seleccionar datos del período activo
   let activeGross = 0;
+  let activeTips = 0;
   let activeCount = 0;
   let activeBookings = [];
   let titleHTML = '';
 
   if (timeframe === 'day') {
     activeGross = dayAmount;
+    activeTips = dayTips;
     activeCount = dayCount;
     activeBookings = dayBookings;
     titleHTML = `<i data-lucide="sun" class="w-4 h-4 text-amber-400"></i> Facturación de Hoy`;
   } else if (timeframe === 'week') {
     activeGross = weekAmount;
+    activeTips = weekTips;
     activeCount = weekCount;
     activeBookings = weekBookings;
     titleHTML = `<i data-lucide="calendar" class="w-4 h-4 text-blue-400"></i> Facturación de esta Semana`;
   } else if (timeframe === 'month') {
     activeGross = monthAmount;
+    activeTips = monthTips;
     activeCount = monthCount;
     activeBookings = monthBookings;
     titleHTML = `<i data-lucide="trending-up" class="w-4 h-4 text-green-400"></i> Facturación de este Mes`;
   } else {
     activeGross = totalGross;
+    activeTips = totalTips;
     activeCount = proBookings.length;
     activeBookings = proBookings;
     titleHTML = `<i data-lucide="shield-check" class="w-4 h-4 text-brand-gold-500"></i> Balance Total Acumulado`;
@@ -3964,11 +3980,14 @@ function renderProUberBillingData(selectedTimeframe) {
 
   const activeComision = Math.round(activeGross * 0.15);
   const activeNet = activeGross - activeComision;
+  const activeTotalTakehome = activeNet + activeTips;
 
   const elTitle = document.getElementById('lbl-billing-active-title');
   const elCount = document.getElementById('lbl-billing-active-count');
   const elNet = document.getElementById('lbl-billing-active-net');
   const elComision = document.getElementById('lbl-billing-active-comision');
+  const elTips = document.getElementById('lbl-billing-active-tips');
+  const elTotalTakehome = document.getElementById('lbl-billing-active-total-takehome');
   const elGross = document.getElementById('lbl-billing-active-gross');
   const elHistCount = document.getElementById('lbl-billing-history-count');
   const elListTitle = document.getElementById('lbl-billing-list-title');
@@ -3977,6 +3996,8 @@ function renderProUberBillingData(selectedTimeframe) {
   if (elCount) elCount.innerText = `${activeCount} Trabajo${activeCount === 1 ? '' : 's'}`;
   if (elNet) elNet.innerText = `$${activeNet.toLocaleString('es-AR')}`;
   if (elComision) elComision.innerText = `-$${activeComision.toLocaleString('es-AR')}`;
+  if (elTips) elTips.innerText = `+$${activeTips.toLocaleString('es-AR')}`;
+  if (elTotalTakehome) elTotalTakehome.innerText = `$${activeTotalTakehome.toLocaleString('es-AR')}`;
   if (elGross) elGross.innerText = `$${activeGross.toLocaleString('es-AR')}`;
   if (elHistCount) elHistCount.innerText = `${activeBookings.length} Transaccion${activeBookings.length === 1 ? '' : 'es'}`;
   
@@ -4006,22 +4027,30 @@ function renderProUberBillingData(selectedTimeframe) {
           ? `<span class="text-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold">💵 Efectivo</span>`
           : `<span class="text-[8px] bg-brand-gold-500/10 text-brand-gold-500 border border-brand-gold-500/25 px-1.5 py-0.5 rounded font-bold">💳 Tarjeta</span>`;
 
+        const tip = b.tip || 0;
+        const tipBadge = tip > 0 
+          ? `<span class="text-[8px] bg-blue-500/15 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-bold">🎁 Propina: +$${tip.toLocaleString('es-AR')}</span>`
+          : '';
+
+        const rowTotal = net + tip;
+
         item.innerHTML = `
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-xl bg-green-500/10 border border-green-500/30 flex items-center justify-center text-green-400 font-bold shrink-0">
               <i data-lucide="check" class="w-4 h-4"></i>
             </div>
             <div>
-              <div class="flex items-center gap-1.5">
+              <div class="flex items-center gap-1.5 flex-wrap">
                 <h4 class="font-extrabold text-white text-xs">${b.clientName || 'Cliente Particular'}</h4>
                 ${methodBadge}
+                ${tipBadge}
               </div>
               <span class="text-[9px] text-slate-500 block">${b.category || 'Servicio'} • ${b.date || 'Hoy'} (${b.time || '12:00'} hs)</span>
             </div>
           </div>
           <div class="text-right">
-            <span class="text-xs font-black text-emerald-400 block">+$${net.toLocaleString('es-AR')}</span>
-            <span class="text-[8px] text-slate-500 block font-semibold">Bruto: $${price.toLocaleString('es-AR')} (Com: -$${com.toLocaleString('es-AR')})</span>
+            <span class="text-xs font-black text-emerald-400 block">+$${rowTotal.toLocaleString('es-AR')}</span>
+            <span class="text-[8px] text-slate-500 block font-semibold">Bruto: $${price.toLocaleString('es-AR')} (Com: -$${com.toLocaleString('es-AR')}) ${tip > 0 ? `+ Propina: $${tip.toLocaleString('es-AR')}` : ''}</span>
           </div>
         `;
         historyList.appendChild(item);
@@ -4726,23 +4755,82 @@ function initClientEventListeners() {
     }
 
     booking.status = "Calificado";
+    
+    // Guardar propina recibida
+    const tip = state.pendingTipAmount || 0;
+    booking.tip = tip;
+
     saveToLocalStorage();
 
     reviewModal.classList.add('hidden');
     reviewModal.classList.remove('flex');
     reviewCommentInput.value = '';
 
-    showToast(
-      "⭐ Calificación Registrada",
-      `Gracias por tu reseña para ${pro.name}. Se ha actualizado su reputación.`,
-      "success"
-    );
+    if (tip > 0) {
+      showToast(
+        "⭐ ¡Calificado con Propina!",
+        `Calificaste a ${pro.name} y le enviaste $${tip.toLocaleString('es-AR')} de propina.`,
+        "success"
+      );
+    } else {
+      showToast(
+        "⭐ Calificación Registrada",
+        `Gracias por tu reseña para ${pro.name}. Se ha actualizado su reputación.`,
+        "success"
+      );
+    }
 
     renderProfessionals();
     renderClientBookings();
     updateDashboardMetrics();
     renderProCalendar();
   });
+
+state.pendingTipAmount = 0;
+
+window.selectTipAmount = (amount, btnElement) => {
+  state.pendingTipAmount = amount;
+
+  document.querySelectorAll('.btn-tip-opt').forEach(btn => {
+    btn.className = "btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-slate-950 border border-slate-850 text-slate-400 hover:text-white transition-all select-none cursor-pointer";
+  });
+
+  if (btnElement) {
+    btnElement.className = "btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-brand-gold-500 border border-brand-gold-500 text-slate-950 transition-all select-none cursor-pointer";
+  } else if (amount === 0) {
+    const firstBtn = document.querySelector('#tip-options-row button');
+    if (firstBtn) {
+      firstBtn.className = "btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-brand-gold-500 border border-brand-gold-500 text-slate-950 transition-all select-none cursor-pointer";
+    }
+  }
+
+  // Reset custom button text if resetting to default
+  if (amount === 0) {
+    const customBtn = document.getElementById('btn-custom-tip');
+    if (customBtn) customBtn.innerText = "Elegir otro monto...";
+  }
+};
+
+window.promptCustomTip = () => {
+  const customStr = prompt("Ingresa el monto de propina personalizado ($):");
+  if (!customStr) return;
+  const amount = parseInt(customStr.replace(/[^0-9]/g, ''));
+  if (isNaN(amount) || amount <= 0) {
+    alert("Por favor ingresa un monto válido.");
+    return;
+  }
+
+  state.pendingTipAmount = amount;
+  
+  document.querySelectorAll('.btn-tip-opt').forEach(btn => {
+    btn.className = "btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-slate-950 border border-slate-850 text-slate-400 hover:text-white transition-all select-none cursor-pointer";
+  });
+
+  const customBtn = document.getElementById('btn-custom-tip');
+  if (customBtn) {
+    customBtn.innerText = `Propina elegida: +$${amount.toLocaleString('es-AR')} (Elegir otro)`;
+  }
+};
 
   // Oyentes de modal de perfil de profesional y verificación
   const btnCloseProProfileModal = document.getElementById('btn-close-pro-profile-modal');
@@ -4930,12 +5018,24 @@ function renderClientBookings() {
 
       state.pendingQualityRating = 5;
       state.pendingAcceptanceRating = 5;
+      state.pendingTipAmount = 0; // Reset tip amount
+
       document.querySelectorAll('#review-stars-quality .review-star-btn').forEach(b => {
-        b.className = "review-star-btn text-brand-gold-500 text-2xl";
+        b.className = "review-star-btn text-brand-gold-500 text-2xl cursor-pointer";
       });
-      document.querySelectorAll('#review-stars-acceptance .accept-star-btn').forEach(b => {
-        b.className = "accept-star-btn text-brand-gold-500 text-2xl";
-      });
+
+      // Reset tip options visually
+      window.selectTipAmount(0, null);
+
+      const booking = state.bookings.find(b => b.id === bId);
+      const tipContainer = document.getElementById('review-tip-container');
+      if (tipContainer) {
+        if (booking && booking.paymentMethod === 'card') {
+          tipContainer.classList.remove('hidden');
+        } else {
+          tipContainer.classList.add('hidden');
+        }
+      }
 
       const modal = document.getElementById('client-review-modal');
       modal.classList.remove('hidden');
