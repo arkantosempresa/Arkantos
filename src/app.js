@@ -5980,12 +5980,7 @@ function openBookingReview(bId) {
   const booking = state.bookings.find(b => b.id === parseInt(bId));
   const tipContainer = document.getElementById('review-tip-container');
   if (tipContainer) {
-    // Show tip section if payment method is card or undefined (default/test bookings)
-    if (booking && booking.paymentMethod === 'cash') {
-      tipContainer.classList.add('hidden');
-    } else {
-      tipContainer.classList.remove('hidden');
-    }
+    tipContainer.classList.remove('hidden');
   }
 
   const modal = document.getElementById('client-review-modal');
