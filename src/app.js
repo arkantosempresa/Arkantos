@@ -985,8 +985,94 @@ function initAuthLogic() {
   });
 }
 
+function checkIsUserBanned(input) {
+  if (!input) return null;
+
+  let targetEmail = "";
+  let targetPhone = "";
+
+  if (typeof input === 'string') {
+    if (input.includes('@')) {
+      targetEmail = input.toLowerCase().trim();
+    } else {
+      targetPhone = input.toLowerCase().trim();
+    }
+  } else if (typeof input === 'object') {
+    if (input.email) targetEmail = String(input.email).toLowerCase().trim();
+    if (input.phone) targetPhone = String(input.phone).toLowerCase().trim();
+  }
+
+  // Buscar en state.users
+  const userMatch = state.users.find(u => {
+    if (!u) return false;
+    const uEmail = (u.email || '').toLowerCase().trim();
+    const uPhone = (u.phone || '').toLowerCase().trim();
+    return (targetEmail && uEmail === targetEmail) || (targetPhone && uPhone && uPhone === targetPhone);
+  });
+
+  // Buscar en state.professionals
+  const proMatch = state.professionals.find(p => {
+    if (!p) return false;
+    const pEmail = (p.email || '').toLowerCase().trim();
+    const pPhone = (p.phone || '').toLowerCase().trim();
+    return (targetEmail && pEmail === targetEmail) || (targetPhone && pPhone && pPhone === targetPhone);
+  });
+
+  const isBanned = (userMatch && userMatch.banned) || 
+                   (proMatch && proMatch.banned) || 
+                   (typeof input === 'object' && input.banned);
+
+  if (isBanned) {
+    const banReason = (userMatch && userMatch.banReason) || (proMatch && proMatch.banReason) || (typeof input === 'object' ? input.banReason : null);
+    const appealStatus = (userMatch && userMatch.appealStatus) || (proMatch && proMatch.appealStatus) || (typeof input === 'object' ? input.appealStatus : null);
+    const appealText = (userMatch && userMatch.appealText) || (proMatch && proMatch.appealText) || (typeof input === 'object' ? input.appealText : null);
+    const appealImage = (userMatch && userMatch.appealImage) || (proMatch && proMatch.appealImage) || (typeof input === 'object' ? input.appealImage : null);
+
+    const bannedObj = {
+      ...(typeof input === 'object' ? input : {}),
+      name: (userMatch && userMatch.name) || (proMatch && proMatch.name) || (typeof input === 'object' ? input.name : "Usuario"),
+      email: targetEmail || (userMatch ? userMatch.email : "") || (proMatch ? proMatch.email : ""),
+      phone: targetPhone || (userMatch ? userMatch.phone : "") || (proMatch ? proMatch.phone : ""),
+      role: (userMatch && userMatch.role) || (proMatch ? 'provider' : (typeof input === 'object' ? input.role : 'client')),
+      banned: true,
+      banReason: banReason || "Incumplimiento de las normas de servicio o conducta de la aplicación.",
+      appealStatus: appealStatus || null,
+      appealText: appealText || null,
+      appealImage: appealImage || null
+    };
+
+    if (userMatch) {
+      userMatch.banned = true;
+      userMatch.banReason = bannedObj.banReason;
+    }
+    if (proMatch) {
+      proMatch.banned = true;
+      proMatch.banReason = bannedObj.banReason;
+    }
+
+    return bannedObj;
+  }
+
+  return null;
+}
+
 function triggerAuthTransition(user, delayMs) {
   if (!user) return;
+
+  const bannedObj = checkIsUserBanned(user);
+  if (bannedObj) {
+    const loader = document.getElementById('auth-loader-overlay');
+    if (loader) loader.classList.add('hidden');
+
+    state.currentUser = bannedObj;
+    state.isAuthenticated = false;
+    saveToLocalStorage();
+
+    showToast("⛔ Cuenta Suspendida", `La cuenta de ${bannedObj.name} ha sido inhabilitada.`, "warning");
+    checkCurrentBannedStatus();
+    return;
+  }
+
   const loader = document.getElementById('auth-loader-overlay');
   const title = document.getElementById('auth-loader-title');
   const subtitle = document.getElementById('auth-loader-subtitle');
@@ -1092,11 +1178,30 @@ function triggerAuthTransition(user, delayMs) {
 let pendingAppealImage = null;
 
 function checkCurrentBannedStatus() {
-  const user = state.currentUser;
+  let user = state.currentUser;
+
+  if (!user && localStorage.getItem('arkantos_current_user')) {
+    try {
+      user = JSON.parse(localStorage.getItem('arkantos_current_user'));
+    } catch(e) {}
+  }
+
   const modal = document.getElementById('user-banned-appeal-modal');
   const reasonLbl = document.getElementById('user-banned-reason-lbl');
 
-  if (!user || user.role === 'admin' || !user.banned) {
+  if (!user || user.role === 'admin') {
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+    return false;
+  }
+
+  const bannedObj = checkIsUserBanned(user);
+  if (bannedObj) {
+    state.currentUser = bannedObj;
+    user = bannedObj;
+  } else if (!user.banned) {
     if (modal) {
       modal.classList.add('hidden');
       modal.classList.remove('flex');
@@ -1126,7 +1231,7 @@ function checkCurrentBannedStatus() {
   if (modal) {
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    lucide.createIcons();
+    try { lucide.createIcons(); } catch (e) {}
   }
   return true;
 }
@@ -5267,6 +5372,16 @@ function runAdminSplashTransition(callback) {
 }
 
 function switchView(view) {
+  if (view !== 'admin' && checkCurrentBannedStatus()) {
+    const authScreen = document.getElementById('auth-screen');
+    if (authScreen) authScreen.classList.remove('hidden');
+    const clientScreen = document.getElementById('client-screen');
+    const proScreen = document.getElementById('professional-screen');
+    if (clientScreen) clientScreen.classList.add('hidden');
+    if (proScreen) proScreen.classList.add('hidden');
+    return;
+  }
+
   state.activeView = view;
   const clientScreen = document.getElementById('client-screen');
   const proScreen = document.getElementById('professional-screen');
