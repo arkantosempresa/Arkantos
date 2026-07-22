@@ -8071,6 +8071,7 @@ function renderAdminFinances() {
 }
 
 // Vincular oyentes de eventos explícitos a los botones de facturación del dashboard
+// Vincular oyentes de eventos explícitos a los botones de facturación del dashboard
 window.addEventListener('load', () => {
   const bDay = document.getElementById('btn-dash-billing-day');
   if (bDay) bDay.addEventListener('click', (e) => { e.stopPropagation(); window.openProBillingModal('day'); });
@@ -8087,3 +8088,161 @@ window.addEventListener('load', () => {
   const bHeader = document.getElementById('btn-dash-billing-header');
   if (bHeader) bHeader.addEventListener('click', (e) => { e.stopPropagation(); window.openProBillingModal('all'); });
 });
+
+// --- HERRAMIENTAS DE SIMULACIÓN Y ACCIONES MAESTRAS ---
+window.simulateMockProfessional = () => {
+  const firstNames = ["Martín", "Sofía", "Juan", "Valeria", "Ignacio", "Camila", "Rodrigo", "Florencia"];
+  const lastNames = ["Gómez", "Díaz", "Álvarez", "Rios", "Mendoza", "Pérez", "López", "Vázquez"];
+  const categories = ["Electricistas", "Plomeros", "Carpinteros", "Gasistas", "Servicios Médicos"];
+  const specialties = ["Urgencias y Reparaciones 24 hs", "Instalaciones y Mantenimiento", "Revisión Preventiva General"];
+  const neighborhoods = ["Villa Sarita", "Microcentro", "El Brete", "Palomar", "Itaembé Miní"];
+
+  const name = firstNames[Math.floor(Math.random() * firstNames.length)] + " " + lastNames[Math.floor(Math.random() * lastNames.length)];
+  const category = categories[Math.floor(Math.random() * categories.length)];
+  const specialty = specialties[Math.floor(Math.random() * specialties.length)];
+  const neighborhood = neighborhoods[Math.floor(Math.random() * neighborhoods.length)];
+  
+  const maxId = state.professionals.reduce((max, p) => (p && p.id > max) ? p.id : max, 0);
+  const newPro = {
+    id: maxId + 1,
+    name: name,
+    email: `simulado.${Date.now()}@arkantos.com`,
+    category: category,
+    specialty: specialty,
+    bio: "Socio profesional simulado por el administrador para pruebas del sistema.",
+    rating: parseFloat((4 + Math.random()).toFixed(1)),
+    reviewsCount: Math.floor(Math.random() * 10) + 1,
+    positiveReviewsPercent: Math.floor(Math.random() * 20) + 80,
+    acceptanceStars: parseFloat((4 + Math.random()).toFixed(1)),
+    acceptancePercent: Math.floor(Math.random() * 15) + 85,
+    location: {
+      lat: -27.36708 + (Math.random() - 0.5) * 0.02,
+      lng: -55.89608 + (Math.random() - 0.5) * 0.02,
+      neighborhood: neighborhood
+    },
+    price: (Math.floor(Math.random() * 10) + 5) * 2000,
+    atHome: Math.random() > 0.3,
+    verified: Math.random() > 0.4,
+    verificationStatus: Math.random() > 0.4 ? 'approved' : 'pending',
+    active: true,
+    avatar: `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 100000)}?auto=format&fit=crop&q=80&w=120&h=120`,
+    phone: `+54 376 4${Math.floor(1000000 + Math.random() * 9000000)}`,
+    agenda: {
+      Lunes: ["09:00", "11:00", "15:00"],
+      Martes: ["10:00", "16:00"],
+      Miercoles: ["09:00", "15:00", "17:00"],
+      Jueves: ["11:00", "17:00"],
+      Viernes: ["10:00", "15:00"]
+    }
+  };
+
+  state.professionals.push(newPro);
+  saveToLocalStorage();
+  showToast("👤 Socio Simulado", `Se registró a ${name} (${category}) con éxito.`, "success");
+  if (state.activeView === 'admin') renderAdminUsers();
+};
+
+window.simulateMockBooking = () => {
+  if (state.professionals.length === 0) {
+    showToast("⚠️ Falta Profesional", "Simula o registra al menos un socio profesional antes de crear reservas.", "warning");
+    return;
+  }
+
+  const pro = state.professionals[Math.floor(Math.random() * state.professionals.length)];
+  const clientNames = ["Lucas Maidana", "Estela Benítez", "Jorge Domínguez", "Silvia Duarte", "Patricia Romero"];
+  const clientName = clientNames[Math.floor(Math.random() * clientNames.length)];
+  
+  const price = pro.price || 15000;
+  const paymentMethod = Math.random() > 0.5 ? 'card' : 'cash';
+  const tip = Math.random() > 0.6 ? (Math.random() > 0.5 ? 1000 : 2000) : 0;
+  const comision = Math.round(price * 0.15);
+
+  const maxId = state.bookings.reduce((max, b) => (b && b.id > max) ? b.id : max, 0);
+  const newBooking = {
+    id: maxId + 1,
+    proId: pro.id,
+    proName: pro.name,
+    proCategory: pro.category,
+    clientName: clientName,
+    clientEmail: `cliente.${Date.now()}@arkantos.com`,
+    date: new Date().toLocaleDateString('es-AR'),
+    time: "14:00",
+    status: "Finalizado",
+    price: price,
+    tip: tip,
+    paymentMethod: paymentMethod
+  };
+
+  state.bookings.push(newBooking);
+
+  if (paymentMethod === 'cash') {
+    pro.cashDebt = (pro.cashDebt || 0) + comision;
+  }
+
+  saveToLocalStorage();
+  showToast("📅 Turno Simulado", `Turno finalizado de ${clientName} con ${pro.name} ($${price.toLocaleString('es-AR')}).`, "success");
+  
+  if (state.activeView === 'admin') {
+    const activeAdminTab = document.querySelector('.admin-content-view:not(.hidden)');
+    if (activeAdminTab && activeAdminTab.id === 'admin-desk-view-overview') {
+      renderAdminOverview();
+    } else if (activeAdminTab && activeAdminTab.id === 'admin-desk-view-finances') {
+      renderAdminFinances();
+    }
+  }
+};
+
+window.simulateMockChat = () => {
+  if (state.professionals.length === 0) {
+    showToast("⚠️ Falta Profesional", "Simula o registra al menos un socio profesional antes de auditar chats.", "warning");
+    return;
+  }
+
+  const pro = state.professionals[Math.floor(Math.random() * state.professionals.length)];
+  const clientEmail = `cliente.${Date.now()}@arkantos.com`;
+  const clientName = "Cliente Simulado";
+  const chatId = `sim-chat-${Date.now()}`;
+
+  const messageTemplates = [
+    { sender: "client", text: "Hola! Quería consultar si realizas reparaciones los fines de semana." },
+    { sender: "pro", text: "Hola! Sí, por supuesto. Tengo disponibilidad los sábados por la mañana." },
+    { sender: "client", text: "Excelente. Necesito solucionar una pérdida en el baño principal." },
+    { sender: "pro", text: "Perfecto. Agendemos un turno para el sábado a las 9:00 hs si te parece bien." },
+    { sender: "client", text: "Dale, agendado. Muchas gracias por responder tan rápido!" }
+  ];
+
+  const messages = messageTemplates.map((msg, idx) => ({
+    sender: msg.sender,
+    text: msg.text,
+    timestamp: Date.now() - (messageTemplates.length - idx) * 60000
+  }));
+
+  const newChat = {
+    id: chatId,
+    clientEmail: clientEmail,
+    proId: pro.id,
+    messages: messages
+  };
+
+  state.chats.push(newChat);
+  saveToLocalStorage();
+  showToast("💬 Conversación Simulada", `Se generó un chat entre ${clientName} y ${pro.name}.`, "success");
+  
+  if (state.activeView === 'admin' && document.querySelector('#admin-desk-view-chats:not(.hidden)')) {
+    renderAdminDeskChats();
+  }
+};
+
+window.resetSystemDatabase = () => {
+  if (!confirm("⚠️ ¿Estás completamente seguro de restablecer la base de datos?\n\nSe eliminarán todos los socios, clientes, reservas, mensajes de chat y apelaciones creadas de forma dinámica, volviendo al estado inicial de fábrica.")) {
+    return;
+  }
+
+  localStorage.removeItem('arkantos_users');
+  localStorage.removeItem('arkantos_professionals');
+  localStorage.removeItem('arkantos_bookings');
+  localStorage.removeItem('arkantos_chats');
+  localStorage.removeItem('arkantos_favorites');
+
+  window.location.reload();
+};

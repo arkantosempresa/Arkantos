@@ -2257,61 +2257,90 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
-          <!-- Live Telemetry / Server Load -->
-          <div class="bg-slate-900 border border-slate-850 rounded-2xl p-4 sm:p-5 space-y-4">
-            <h3 class="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-              <i data-lucide="cpu" class="w-4 h-4 text-brand-gold-500"></i>
-              Telemetría de Servidores
+          <!-- ACCESOS DIRECTOS DE CONTROL RÁPIDO -->
+          <div class="bg-slate-900 border border-slate-850 rounded-2xl p-4 sm:p-5 space-y-3.5">
+            <h3 class="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2 select-none">
+              <i data-lucide="layout-grid" class="w-4 h-4 text-brand-gold-500"></i>
+              Accesos Directos
             </h3>
             
-            <div class="space-y-3.5">
-              <div>
-                <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1.5 uppercase">
-                  <span>Carga de Procesador</span>
-                  <span class="text-white">12%</span>
-                </div>
-                <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800/80 p-0.5">
-                  <div class="bg-brand-gold-500 h-full w-[12%] rounded-full"></div>
-                </div>
-              </div>
+            <div class="flex flex-col gap-2">
+              <button onclick="window.switchAdminSubview('approvals')" class="w-full flex items-center justify-between p-2.5 bg-slate-950/60 hover:bg-slate-850/85 border border-slate-850 hover:border-brand-gold-500/30 rounded-xl transition text-left cursor-pointer">
+                <span class="flex items-center gap-2.5 text-[11px] font-bold text-slate-350">
+                  <i data-lucide="shield-check" class="w-4 h-4 text-brand-gold-500"></i> Aprobaciones Manuales
+                </span>
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-600"></i>
+              </button>
+              
+              <button onclick="window.switchAdminSubview('appeals')" class="w-full flex items-center justify-between p-2.5 bg-slate-950/60 hover:bg-slate-850/85 border border-slate-850 hover:border-amber-500/30 rounded-xl transition text-left cursor-pointer">
+                <span class="flex items-center gap-2.5 text-[11px] font-bold text-slate-350">
+                  <i data-lucide="scale" class="w-4 h-4 text-amber-400"></i> Apelaciones de Baneos
+                </span>
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-600"></i>
+              </button>
 
-              <div>
-                <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1.5 uppercase">
-                  <span>Consumo de Base de Datos</span>
-                  <span class="text-white">42%</span>
-                </div>
-                <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800/80 p-0.5">
-                  <div class="bg-blue-500 h-full w-[42%] rounded-full"></div>
-                </div>
-              </div>
+              <button onclick="window.switchAdminSubview('users')" class="w-full flex items-center justify-between p-2.5 bg-slate-950/60 hover:bg-slate-850/85 border border-slate-850 hover:border-blue-500/30 rounded-xl transition text-left cursor-pointer">
+                <span class="flex items-center gap-2.5 text-[11px] font-bold text-slate-350">
+                  <i data-lucide="users" class="w-4 h-4 text-blue-400"></i> Gestionar Perfiles
+                </span>
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-600"></i>
+              </button>
 
-              <div>
-                <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1.5 uppercase">
-                  <span>Conexiones Concurrentes</span>
-                  <span class="text-white">24 / 500 max</span>
-                </div>
-                <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800/80 p-0.5">
-                  <div class="bg-purple-500 h-full w-[8%] rounded-full"></div>
-                </div>
-              </div>
+              <button onclick="window.switchAdminSubview('chats')" class="w-full flex items-center justify-between p-2.5 bg-slate-950/60 hover:bg-slate-850/85 border border-slate-850 hover:border-purple-500/30 rounded-xl transition text-left cursor-pointer">
+                <span class="flex items-center gap-2.5 text-[11px] font-bold text-slate-350">
+                  <i data-lucide="message-square" class="w-4 h-4 text-purple-400"></i> Auditar Chats en Vivo
+                </span>
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-600"></i>
+              </button>
+
+              <button onclick="window.switchAdminSubview('finances')" class="w-full flex items-center justify-between p-2.5 bg-slate-950/60 hover:bg-slate-850/85 border border-slate-850 hover:border-green-500/30 rounded-xl transition text-left cursor-pointer">
+                <span class="flex items-center gap-2.5 text-[11px] font-bold text-slate-350">
+                  <i data-lucide="dollar-sign" class="w-4 h-4 text-green-400"></i> Libro Contable & Tarifas
+                </span>
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-600"></i>
+              </button>
             </div>
           </div>
 
-          <!-- Master Terminal System Logs -->
-          <div class="col-span-1 lg:col-span-2 bg-slate-900 border border-slate-850 rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
-            <h3 class="text-xs font-black text-white uppercase tracking-wider flex items-center justify-between">
-              <span class="flex items-center gap-2">
-                <i data-lucide="terminal" class="w-4 h-4 text-emerald-450"></i>
-                Consola de logs del sistema
-              </span>
-              <span class="text-[8px] bg-slate-950 text-slate-500 px-2 py-0.5 border border-slate-850 rounded uppercase">Live Feed</span>
+          <!-- GENERADOR DE PRUEBAS Y ACCIONES MAESTRAS -->
+          <div class="col-span-1 lg:col-span-2 bg-slate-900 border border-slate-850 rounded-2xl p-4 sm:p-5 space-y-4">
+            <h3 class="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2 select-none">
+              <i data-lucide="wrench" class="w-4 h-4 text-emerald-400"></i>
+              Herramientas de Simulación y Acciones Maestras
             </h3>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <!-- Simular Socio -->
+              <button onclick="window.simulateMockProfessional()" class="p-3.5 bg-slate-950/40 hover:bg-slate-850/60 border border-slate-850 hover:border-slate-800 rounded-xl transition text-left space-y-1.5 active:scale-[0.98] cursor-pointer">
+                <span class="text-[10px] font-extrabold text-brand-gold-500 uppercase tracking-wider block flex items-center gap-1.5">
+                  <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Simular Socio Profesional
+                </span>
+                <p class="text-[10.5px] text-slate-450 leading-relaxed font-medium">Registra un nuevo prestador de prueba para validar flujos de búsqueda y agenda.</p>
+              </button>
 
-            <div id="admin-desk-logs-terminal" class="flex-1 bg-slate-950/80 border border-slate-850 rounded-xl p-3.5 font-mono text-[9px] text-emerald-400 space-y-2 h-44 overflow-y-auto no-scrollbar">
-              <div>[SYSTEM INFO] Master Cockpit inicializado correctamente...</div>
-              <div>[DATABASE] Conexión establecida con arkantos_local_storage db.</div>
-              <div>[DAEMON] Hilo de recordatorios de turnos agendados activo (cada 10s).</div>
-              <div>[AUTH] Administrador maestro admin@arkantos.com ingresó al panel.</div>
+              <!-- Simular Reserva -->
+              <button onclick="window.simulateMockBooking()" class="p-3.5 bg-slate-950/40 hover:bg-slate-850/60 border border-slate-850 hover:border-slate-800 rounded-xl transition text-left space-y-1.5 active:scale-[0.98] cursor-pointer">
+                <span class="text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider block flex items-center gap-1.5">
+                  <i data-lucide="check-square" class="w-3.5 h-3.5"></i> Simular Turno / Comisión
+                </span>
+                <p class="text-[10.5px] text-slate-450 leading-relaxed font-medium">Registra una reserva completada para cargar ingresos de comisión y actualizar gráficos contables.</p>
+              </button>
+
+              <!-- Simular Mensaje -->
+              <button onclick="window.simulateMockChat()" class="p-3.5 bg-slate-950/40 hover:bg-slate-850/60 border border-slate-850 hover:border-slate-800 rounded-xl transition text-left space-y-1.5 active:scale-[0.98] cursor-pointer">
+                <span class="text-[10px] font-extrabold text-purple-400 uppercase tracking-wider block flex items-center gap-1.5">
+                  <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> Simular Mensajes de Chat
+                </span>
+                <p class="text-[10.5px] text-slate-450 leading-relaxed font-medium">Crea una conversación de prueba entre un cliente y un socio para verificar la auditoría.</p>
+              </button>
+
+              <!-- Limpiar Datos / Reset -->
+              <button onclick="window.resetSystemDatabase()" class="p-3.5 bg-red-955/10 hover:bg-red-950/20 border border-red-900/20 hover:border-red-900/40 rounded-xl transition text-left space-y-1.5 active:scale-[0.98] cursor-pointer">
+                <span class="text-[10px] font-extrabold text-red-400 uppercase tracking-wider block flex items-center gap-1.5">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Restablecer Base de Datos
+                </span>
+                <p class="text-[10.5px] text-red-450/70 leading-relaxed font-medium">Limpia todos los turnos, chats y usuarios creados dinámicamente y vuelve a la configuración inicial.</p>
+              </button>
             </div>
           </div>
         </div>
@@ -3222,7 +3251,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
   <!-- Core Logic Loader -->
-  <script src="src/app.js?v=33"></script>
+  <script src="src/app.js?v=34"></script>
 
   <!-- Script de Inicialización PWA Service Worker e Instalación App Web -->
   <script>
@@ -3230,7 +3259,7 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=33')
+        navigator.serviceWorker.register('./sw.js?v=34')
           .then(reg => {
             console.log('Service Worker ARKANTOS PWA listo:', reg);
             reg.update();
