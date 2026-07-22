@@ -2870,27 +2870,16 @@ function initProfessionalEventListeners() {
     openSupportChat('pro');
   });
 
-  // Inicializar navegación del calendario mensual
-  const btnPrevMonth = document.getElementById('btn-pro-prev-month');
-  const btnNextMonth = document.getElementById('btn-pro-next-month');
-
-  if (btnPrevMonth) {
-    btnPrevMonth.addEventListener('click', () => {
-      const current = state.currentCalendarMonth || new Date();
-      current.setMonth(current.getMonth() - 1);
-      state.currentCalendarMonth = current;
-      renderProCalendar();
-    });
-  }
-
-  if (btnNextMonth) {
-    btnNextMonth.addEventListener('click', () => {
-      const current = state.currentCalendarMonth || new Date();
-      current.setMonth(current.getMonth() + 1);
-      state.currentCalendarMonth = current;
-      renderProCalendar();
-    });
-  }
+  // Definir la navegación global del calendario
+  window.changeProCalendarMonth = (offset) => {
+    if (!state.currentCalendarMonth) {
+      state.currentCalendarMonth = new Date();
+    }
+    const current = new Date(state.currentCalendarMonth);
+    current.setMonth(current.getMonth() + offset);
+    state.currentCalendarMonth = current;
+    renderProCalendar();
+  };
 
   // Botón Historial de Trabajos
   const btnProHistory = document.getElementById('btn-pro-history');
