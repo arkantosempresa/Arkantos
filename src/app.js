@@ -1393,20 +1393,50 @@ window.submitUserAppeal = () => {
     return;
   }
 
+  const userEmail = (user.email || '').toLowerCase().trim();
+  const userPhone = (user.phone || '').toLowerCase().trim();
+
+  user.banned = true;
   user.appealStatus = 'pending';
   user.appealText = text;
   user.appealImage = pendingAppealImage;
   user.appealTimestamp = Date.now();
 
-  const matchedUser = state.users.find(u => u && u.email && u.email.toLowerCase() === user.email.toLowerCase());
+  // 1. Buscar / actualizar o agregar en state.users
+  let matchedUser = state.users.find(u => {
+    if (!u) return false;
+    const uEmail = (u.email || '').toLowerCase().trim();
+    const uPhone = (u.phone || '').toLowerCase().trim();
+    return (userEmail && uEmail === userEmail) || (userPhone && uPhone && uPhone === userPhone);
+  });
+
   if (matchedUser) {
+    matchedUser.banned = true;
     matchedUser.appealStatus = 'pending';
     matchedUser.appealText = text;
     matchedUser.appealImage = pendingAppealImage;
-    matchedUser.appealTimestamp = Date.now();
+    matchedUser.appealTimestamp = user.appealTimestamp;
+  } else {
+    state.users.push({ ...user });
   }
 
-  saveToLocalStorage();
+  // 2. Buscar / actualizar en state.professionals
+  let matchedPro = state.professionals.find(p => {
+    if (!p) return false;
+    const pEmail = (p.email || '').toLowerCase().trim();
+    const pPhone = (p.phone || '').toLowerCase().trim();
+    return (userEmail && pEmail === userEmail) || (userPhone && pPhone && pPhone === userPhone);
+  });
+
+  if (matchedPro) {
+    matchedPro.banned = true;
+    matchedPro.appealStatus = 'pending';
+    matchedPro.appealText = text;
+    matchedPro.appealImage = pendingAppealImage;
+    matchedPro.appealTimestamp = user.appealTimestamp;
+  }
+
+  saveToLocalStorage(); // Sincroniza a Firebase en tiempo real
 
   showToast("📩 Apelación Enviada", "Tus descargos fueron enviados al administrador.", "success");
 
@@ -6906,17 +6936,17 @@ function renderAdminAppeals() {
   const processedEmails = new Set();
 
   const checkAndAdd = (item, isPro) => {
-    if (!item || !item.email) return;
-    const emailLower = item.email.toLowerCase().trim();
-    if (processedEmails.has(emailLower)) return;
+    if (!item) return;
+    const identifier = (item.email || item.phone || item.id || '').toString().toLowerCase().trim();
+    if (!identifier || processedEmails.has(identifier)) return;
 
     if (item.banned && item.appealStatus === 'pending') {
-      processedEmails.add(emailLower);
+      processedEmails.add(identifier);
       pendingAppeals.push({
         obj: item,
         isPro: isPro,
         name: item.name || "Usuario",
-        email: item.email,
+        email: item.email || "Sin correo",
         phone: item.phone || "Sin teléfono",
         role: item.role === 'provider' || isPro ? 'Socio Profesional' : 'Cliente',
         banReason: item.banReason || "Incumplimiento de las normas de servicio o conducta de la aplicación.",
@@ -6929,6 +6959,7 @@ function renderAdminAppeals() {
 
   (state.users || []).forEach(u => checkAndAdd(u, u.role === 'provider'));
   (state.professionals || []).forEach(p => checkAndAdd(p, true));
+  if (state.currentUser) checkAndAdd(state.currentUser, state.currentUser.role === 'provider');
 
   const count = pendingAppeals.length;
   if (badgeSidebar) {
