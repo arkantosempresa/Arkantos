@@ -418,10 +418,11 @@ function loadFromLocalStorage() {
   if (storedUsers) {
     try {
       const parsed = JSON.parse(storedUsers);
-      // Mantener otros usuarios si fueron registrados dinámicamente, asegurando que admin permanezca intacto
-      state.users = parsed.filter(u => u && u.email && u.email.toLowerCase() === "admin@arkantos.com");
-      if (state.users.length === 0) {
-        state.users = [{ name: "Administrador", email: "admin@arkantos.com", password: "admin", role: "admin" }];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        state.users = parsed.filter(u => u && u.email);
+        if (!state.users.some(u => u.email.toLowerCase() === "admin@arkantos.com")) {
+          state.users.unshift({ name: "Administrador", email: "admin@arkantos.com", password: "admin", role: "admin" });
+        }
       }
     } catch (e) {}
   }
@@ -1293,6 +1294,19 @@ function openAdminBanModal(userToBan, callback) {
       userToBan.banReason = reason;
       userToBan.banTimestamp = Date.now();
       userToBan.appealStatus = null;
+
+      if (userToBan.email) {
+        const pro = state.professionals.find(p => p.email && p.email.toLowerCase() === userToBan.email.toLowerCase());
+        if (pro) {
+          pro.banned = true;
+          pro.banReason = reason;
+        }
+        const u = state.users.find(u => u.email && u.email.toLowerCase() === userToBan.email.toLowerCase());
+        if (u) {
+          u.banned = true;
+          u.banReason = reason;
+        }
+      }
 
       saveToLocalStorage();
       showToast("⛔ Cuenta Suspendida", `Se aplicó la sanción a ${userToBan.name}: "${reason}".`, "warning");
@@ -6893,21 +6907,34 @@ function initAdminPanel() {
         if (isPro) {
           const pro = state.professionals.find(p => p.id === pId);
           if (pro) {
-            userObj = state.users.find(u => u.email.toLowerCase() === pro.email.toLowerCase());
+            userObj = state.users.find(u => u.email && u.email.toLowerCase() === pro.email.toLowerCase()) || pro;
           }
         } else {
           userObj = state.users.find(u => u.id === pId || (u.email && u.email.toLowerCase() === String(pId).toLowerCase()));
         }
 
         if (userObj) {
-          userObj.banned = !userObj.banned;
-          saveToLocalStorage();
-          showToast(
-            userObj.banned ? "🚫 Cuenta Suspendida" : "✅ Cuenta Activada",
-            `El usuario ${userObj.name} ahora está ${userObj.banned ? 'inhabilitado' : 'habilitado'}.`,
-            userObj.banned ? "warning" : "success"
-          );
-          selectAdminDeskProfile(pId, isPro);
+          if (userObj.banned) {
+            userObj.banned = false;
+            userObj.banReason = null;
+            userObj.appealStatus = null;
+            if (userObj.email) {
+              const pro = state.professionals.find(p => p.email && p.email.toLowerCase() === userObj.email.toLowerCase());
+              if (pro) { pro.banned = false; pro.banReason = null; }
+              const u = state.users.find(u => u.email && u.email.toLowerCase() === userObj.email.toLowerCase());
+              if (u) { u.banned = false; u.banReason = null; }
+            }
+            saveToLocalStorage();
+            showToast("✅ Cuenta Activada", `El usuario ${userObj.name} ahora está habilitado.`, "success");
+            renderAdminUsers();
+            selectAdminDeskProfile(pId, isPro);
+          } else {
+            openAdminBanModal(userObj, () => {
+              saveToLocalStorage();
+              renderAdminUsers();
+              selectAdminDeskProfile(pId, isPro);
+            });
+          }
         }
       }
     };
@@ -7342,9 +7369,14 @@ function selectAdminDeskProfile(profileId, isPro) {
   const btnAcceptAppeal = document.getElementById('btn-admin-accept-appeal');
   const btnRejectAppeal = document.getElementById('btn-admin-reject-appeal');
 
-  const userToBan = dossierUserObj || (dossierProObj ? state.users.find(u => u.email.toLowerCase() === dossierProObj.email.toLowerCase()) : null);
+  let userToBan = dossierUserObj || (dossierProObj ? state.users.find(u => u.email && u.email.toLowerCase() === dossierProObj.email.toLowerCase()) : null);
+  if (!userToBan && dossierProObj) {
+    userToBan = dossierProObj;
+  }
 
-  if (userToBan && userToBan.banned && userToBan.appealStatus === 'pending') {
+  const isUserBanned = userToBan ? (userToBan.banned || (dossierProObj && dossierProObj.banned)) : false;
+
+  if (userToBan && isUserBanned && userToBan.appealStatus === 'pending') {
     if (appealCard) appealCard.classList.remove('hidden');
     if (appealTextLbl) appealTextLbl.innerText = `"${userToBan.appealText || 'Sin descargos redactados.'}"`;
     
@@ -7363,6 +7395,13 @@ function selectAdminDeskProfile(profileId, isPro) {
         userToBan.banned = false;
         userToBan.banReason = null;
         userToBan.appealStatus = 'accepted';
+        if (dossierProObj) { dossierProObj.banned = false; dossierProObj.banReason = null; }
+        if (userToBan.email) {
+          const u = state.users.find(u => u.email && u.email.toLowerCase() === userToBan.email.toLowerCase());
+          if (u) { u.banned = false; u.banReason = null; }
+          const p = state.professionals.find(p => p.email && p.email.toLowerCase() === userToBan.email.toLowerCase());
+          if (p) { p.banned = false; p.banReason = null; }
+        }
         saveToLocalStorage();
         showToast("✅ Apelación Aceptada", `Se levantó la sanción a ${userToBan.name}.`, "success");
         renderAdminUsers();
@@ -7385,14 +7424,21 @@ function selectAdminDeskProfile(profileId, isPro) {
 
   // Configurar botón banear
   if (userToBan) {
-    if (btnBanText) btnBanText.innerText = userToBan.banned ? "Activar Cuenta" : "Banear Usuario";
+    if (btnBanText) btnBanText.innerText = isUserBanned ? "Activar Cuenta" : "Banear Usuario";
     if (btnBan) {
-      if (userToBan.banned) {
+      if (isUserBanned) {
         btnBan.className = "bg-green-500 hover:bg-green-600 text-slate-950 font-extrabold py-2 px-4 rounded-xl text-xs transition active:scale-95 flex items-center gap-1.5";
         btnBan.onclick = () => {
           userToBan.banned = false;
           userToBan.banReason = null;
           userToBan.appealStatus = null;
+          if (dossierProObj) { dossierProObj.banned = false; dossierProObj.banReason = null; }
+          if (userToBan.email) {
+            const u = state.users.find(u => u.email && u.email.toLowerCase() === userToBan.email.toLowerCase());
+            if (u) { u.banned = false; u.banReason = null; }
+            const p = state.professionals.find(p => p.email && p.email.toLowerCase() === userToBan.email.toLowerCase());
+            if (p) { p.banned = false; p.banReason = null; }
+          }
           saveToLocalStorage();
           showToast("✅ Cuenta Reactivada", `Se eliminó la suspensión de ${userToBan.name}.`, "success");
           renderAdminUsers();
@@ -7402,6 +7448,11 @@ function selectAdminDeskProfile(profileId, isPro) {
         btnBan.className = "bg-red-955/20 border border-red-900/40 text-red-400 hover:bg-red-955/35 font-extrabold py-2 px-4 rounded-xl text-xs transition active:scale-95 flex items-center gap-1.5";
         btnBan.onclick = () => {
           openAdminBanModal(userToBan, () => {
+            if (dossierProObj) {
+              dossierProObj.banned = true;
+              dossierProObj.banReason = userToBan.banReason;
+            }
+            saveToLocalStorage();
             renderAdminUsers();
             selectAdminDeskProfile(profileId, isPro);
           });
