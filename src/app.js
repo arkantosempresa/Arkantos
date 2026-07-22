@@ -96,6 +96,41 @@ function parseDateString(dateStr) {
   return new Date();
 }
 
+function compressAndResizeImage(base64Str, maxWidth = 600, maxHeight = 600, quality = 0.7) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+      resolve(compressedBase64);
+    };
+    img.onerror = () => {
+      resolve(base64Str);
+    };
+  });
+}
+
 // Definir la navegación global del calendario mensual (Top level para evitar fallas de inicialización)
 window.changeProCalendarMonth = (offset) => {
   console.log("[Arkantos Calendar] changeProCalendarMonth clicked. Offset:", offset);
@@ -2765,11 +2800,13 @@ function initProfessionalEventListeners() {
         runImageSafetyScan(file.name).then(() => {
           const reader = new FileReader();
           reader.onload = function(evt) {
-            state.dniFrontImage = evt.target.result;
-            dniFrontPreview.src = evt.target.result;
-            dniFrontPreview.classList.remove('hidden');
-            dniFrontPlaceholder.classList.add('hidden');
-            showToast("📁 DNI Frente Cargado", "La foto frontal fue seleccionada correctamente.", "success");
+            compressAndResizeImage(evt.target.result).then(compressed => {
+              state.dniFrontImage = compressed;
+              dniFrontPreview.src = compressed;
+              dniFrontPreview.classList.remove('hidden');
+              dniFrontPlaceholder.classList.add('hidden');
+              showToast("📁 DNI Frente Cargado", "La foto frontal fue seleccionada y optimizada correctamente.", "success");
+            });
           };
           reader.readAsDataURL(file);
         }).catch(() => {
@@ -2787,11 +2824,13 @@ function initProfessionalEventListeners() {
         runImageSafetyScan(file.name).then(() => {
           const reader = new FileReader();
           reader.onload = function(evt) {
-            state.dniBackImage = evt.target.result;
-            dniBackPreview.src = evt.target.result;
-            dniBackPreview.classList.remove('hidden');
-            dniBackPlaceholder.classList.add('hidden');
-            showToast("📁 DNI Dorso Cargado", "La foto posterior fue seleccionada correctamente.", "success");
+            compressAndResizeImage(evt.target.result).then(compressed => {
+              state.dniBackImage = compressed;
+              dniBackPreview.src = compressed;
+              dniBackPreview.classList.remove('hidden');
+              dniBackPlaceholder.classList.add('hidden');
+              showToast("📁 DNI Dorso Cargado", "La foto posterior fue seleccionada y optimizada correctamente.", "success");
+            });
           };
           reader.readAsDataURL(file);
         }).catch(() => {
@@ -2904,30 +2943,24 @@ function initProfessionalEventListeners() {
     }
 
     if (dniErrorMessage) dniErrorMessage.classList.add('hidden');
-    btnVerifyDni.disabled = true;
-    btnVerifyDni.innerText = "Enviando...";
 
-    setTimeout(() => {
-      btnVerifyDni.disabled = false;
-      btnVerifyDni.innerText = "Verificar Mi Identidad";
-      
-      pro.verified = false;
-      pro.verificationStatus = 'pending';
-      pro.rejectionReason = null;
-      pro.dniNumber = dni;
-      pro.dniName = typedName;
-      pro.dniFrontImage = state.dniFrontImage;
-      pro.dniBackImage = state.dniBackImage;
-      
-      saveToLocalStorage();
-      showToast(
-        "📩 Solicitud Enviada", 
-        "Tus fotos de DNI y datos fueron enviados para aprobación del administrador.", 
-        "success"
-      );
-      
-      updateProVerificationUI();
-    }, 1000);
+    pro.verified = false;
+    pro.verificationStatus = 'pending';
+    pro.rejectionReason = null;
+    pro.dniNumber = dni;
+    pro.dniName = typedName;
+    pro.dniFrontImage = state.dniFrontImage;
+    pro.dniBackImage = state.dniBackImage;
+    
+    saveToLocalStorage(); // Sincroniza a Firebase al instante
+
+    showToast(
+      "📩 Solicitud Enviada", 
+      "Tus fotos de DNI y datos fueron enviados para aprobación del administrador.", 
+      "success"
+    );
+    
+    updateProVerificationUI(); // Actualiza a "Aprobación Pendiente" de inmediato
   });
 
   // --- MODAL LEY ADVERTENCIA DE DNI ---
@@ -3024,11 +3057,13 @@ function initProfessionalEventListeners() {
         runImageSafetyScan(file.name).then(() => {
           const reader = new FileReader();
           reader.onload = function(evt) {
-            pendingPortfolioImage = evt.target.result;
-            portImagePreview.src = evt.target.result;
-            portImagePreviewContainer.classList.remove('hidden');
-            btnRemovePortfolioFile.classList.remove('hidden');
-            showToast("📸 Foto de Trabajo Cargada", "La imagen se cargó correctamente y pasó los filtros AI.", "success");
+            compressAndResizeImage(evt.target.result).then(compressed => {
+              pendingPortfolioImage = compressed;
+              portImagePreview.src = compressed;
+              portImagePreviewContainer.classList.remove('hidden');
+              btnRemovePortfolioFile.classList.remove('hidden');
+              showToast("📸 Foto de Trabajo Cargada", "La imagen se cargó y optimizó correctamente.", "success");
+            });
           };
           reader.readAsDataURL(file);
         }).catch(() => {
