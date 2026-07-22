@@ -115,6 +115,46 @@ window.changeProCalendarMonth = (offset) => {
   renderProCalendar();
 };
 
+// Control de colapsables en la disponibilidad del profesional
+window.toggleAvailabilityDay = (day) => {
+  if (!state.expandedAvailabilityDays) {
+    state.expandedAvailabilityDays = {};
+  }
+  state.expandedAvailabilityDays[day] = !state.expandedAvailabilityDays[day];
+  renderAvailabilityEditor();
+};
+
+// Agregar horario personalizado manual por día
+window.addCustomAvailabilityTime = (day) => {
+  const input = document.getElementById(`custom-time-${day}`);
+  if (!input) return;
+  const timeVal = input.value;
+  if (!timeVal) {
+    showToast("⚠️ Horario inválido", "Por favor selecciona una hora.", "warning");
+    return;
+  }
+
+  const pro = getCurrentPro();
+  if (!pro) return;
+
+  if (!pro.agenda[day]) {
+    pro.agenda[day] = [];
+  }
+
+  if (pro.agenda[day].includes(timeVal)) {
+    showToast("⚠️ Ya registrado", "Ese horario ya está disponible en tu agenda.", "warning");
+    return;
+  }
+
+  pro.agenda[day].push(timeVal);
+  pro.agenda[day].sort();
+
+  saveToLocalStorage();
+  renderAvailabilityEditor();
+  renderProCalendar();
+  showToast("⏰ Horario Agregado", `Se añadió ${timeVal} hs a tu agenda del ${day}.`, "success");
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   try {
     loadFromLocalStorage(); // Carga de datos persistidos
@@ -4322,7 +4362,7 @@ function renderPendingBookings() {
   });
 }
 
-// --- CONFIGURACIÓN DE DISPONIBILIDAD (OPCIONAL) ---
+// --- CONFIGURACIÓN DE DISPONIBILIDAD (COLAPSABLE CON INGRESO MANUAL) ---
 function renderAvailabilityEditor() {
   const container = document.getElementById('availability-days-editor');
   if (!container) return;
@@ -4333,50 +4373,94 @@ function renderAvailabilityEditor() {
 
   const dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
 
+  if (!state.expandedAvailabilityDays) {
+    state.expandedAvailabilityDays = { "Lunes": true }; // Lunes abierto por defecto
+  }
+
   dias.forEach(day => {
     const activeHours = pro.agenda[day] || [];
-    const div = document.createElement('div');
-    div.className = "bg-slate-955/60 border border-slate-850 p-2.5 rounded-xl flex flex-col gap-2";
+    const isExpanded = !!state.expandedAvailabilityDays[day];
 
-    div.innerHTML = `
-      <div class="flex justify-between items-center">
-        <span class="text-xs font-bold text-white">${day}</span>
-        <span class="text-[9px] text-slate-500 font-semibold uppercase">${activeHours.length} Horarios</span>
+    const card = document.createElement('div');
+    card.className = "bg-slate-900/80 border border-slate-850 rounded-2xl overflow-hidden transition shadow-sm";
+
+    let bodyHTML = '';
+    if (isExpanded) {
+      bodyHTML = `
+        <div class="p-3.5 pt-0 border-t border-slate-900 flex flex-col gap-3.5 bg-slate-950/20">
+          <div class="space-y-1.5 mt-2">
+            <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest block">Seleccionar horarios rápidos:</span>
+            <div class="flex flex-wrap gap-1.5" id="avail-hours-${day}"></div>
+          </div>
+          
+          <div class="border-t border-slate-900/60 pt-3 flex items-end gap-2.5">
+            <div class="flex-1 flex flex-col gap-1">
+              <label class="text-[9px] text-slate-550 font-black uppercase tracking-widest block">Horario personalizado (ej: 09:30):</label>
+              <input type="time" id="custom-time-${day}" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-gold-500 transition font-bold">
+            </div>
+            <button type="button" onclick="window.addCustomAvailabilityTime('${day}')" class="bg-brand-gold-500 hover:bg-brand-gold-600 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-[10px] uppercase tracking-wider transition active:scale-95 flex items-center gap-1 cursor-pointer shrink-0 h-[32px] justify-center">
+              <i data-lucide="plus" class="w-3.5 h-3.5 pointer-events-none"></i>
+              <span>Agregar</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    card.innerHTML = `
+      <div class="flex justify-between items-center p-3.5 cursor-pointer hover:bg-slate-850/30 transition select-none" onclick="window.toggleAvailabilityDay('${day}')">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-black text-slate-100">${day}</span>
+          <span class="text-[9px] bg-brand-gold-500/10 text-brand-gold-500 px-1.5 py-0.5 rounded font-extrabold uppercase">${activeHours.length} Horarios</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">${isExpanded ? 'Ocultar' : 'Configurar'}</span>
+          <i data-lucide="${isExpanded ? 'chevron-up' : 'chevron-down'}" class="w-4 h-4 text-slate-400 pointer-events-none"></i>
+        </div>
       </div>
-      <div class="flex flex-wrap gap-1.5" id="avail-hours-${day}"></div>
+      ${bodyHTML}
     `;
 
-    container.appendChild(div);
+    container.appendChild(card);
 
-    const hoursContainer = document.getElementById(`avail-hours-${day}`);
-    const availableSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
+    if (isExpanded) {
+      const hoursContainer = document.getElementById(`avail-hours-${day}`);
+      if (hoursContainer) {
+        const defaultSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
+        const allSlotsSet = new Set([...defaultSlots, ...activeHours]);
+        const allSlots = Array.from(allSlotsSet).sort();
 
-    availableSlots.forEach(time => {
-      const isActive = activeHours.includes(time);
-      const hourBtn = document.createElement('button');
-      hourBtn.className = `px-2 py-1 text-[10px] font-bold rounded-lg border transition ${
-        isActive 
-          ? 'bg-brand-gold-500/10 text-brand-gold-500 border-brand-gold-500/40' 
-          : 'bg-slate-900 text-slate-550 border-slate-850'
-      }`;
-      hourBtn.innerText = time;
+        allSlots.forEach(time => {
+          const isActive = activeHours.includes(time);
+          const hourBtn = document.createElement('button');
+          hourBtn.className = `px-2 py-1 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
+            isActive 
+              ? 'bg-brand-gold-500/10 text-brand-gold-500 border-brand-gold-500/40' 
+              : 'bg-slate-900 text-slate-550 border-slate-850 hover:bg-slate-850 hover:text-white'
+          }`;
+          hourBtn.innerText = time;
 
-      hourBtn.addEventListener('click', () => {
-        if (isActive) {
-          pro.agenda[day] = pro.agenda[day].filter(h => h !== time);
-        } else {
-          pro.agenda[day].push(time);
-          pro.agenda[day].sort();
-        }
-        saveToLocalStorage();
-        renderAvailabilityEditor();
-        renderProCalendar();
-        showToast("Agenda Actualizada", `Disponibilidad de ${day} modificada.`, "success");
-      });
+          hourBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Evitar colapso al clickear botón de hora
+            if (isActive) {
+              pro.agenda[day] = pro.agenda[day].filter(h => h !== time);
+            } else {
+              pro.agenda[day].push(time);
+              pro.agenda[day].sort();
+            }
+            saveToLocalStorage();
+            renderAvailabilityEditor();
+            renderProCalendar();
+            showToast("Agenda Actualizada", `Disponibilidad de ${day} modificada.`, "success");
+          });
 
-      hoursContainer.appendChild(hourBtn);
-    });
+          hoursContainer.appendChild(hourBtn);
+        });
+      }
+    }
   });
+
+  lucide.createIcons();
 }
 
 window.endSosSearch = function(cancelled = false) {
