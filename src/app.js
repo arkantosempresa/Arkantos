@@ -2457,6 +2457,7 @@ function initProfessionalEventListeners() {
         });
       }
     });
+  }
   if (dniFrontPreview) {
     dniFrontPreview.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -2639,19 +2640,25 @@ function initProfessionalEventListeners() {
   const billingDetailSheet = document.getElementById('billing-detail-sheet');
   const btnCloseBillingDetail = document.getElementById('btn-close-billing-detail');
 
-  btnOpenBillingSheet.addEventListener('click', () => {
-    billingDetailSheet.classList.remove('hidden');
-  });
+  if (btnOpenBillingSheet && billingDetailSheet) {
+    btnOpenBillingSheet.addEventListener('click', () => {
+      billingDetailSheet.classList.remove('hidden');
+    });
+  }
 
-  btnCloseBillingDetail.addEventListener('click', () => {
-    billingDetailSheet.classList.add('hidden');
-  });
-
-  billingDetailSheet.addEventListener('click', (e) => {
-    if (e.target.id === 'billing-detail-sheet') {
+  if (btnCloseBillingDetail && billingDetailSheet) {
+    btnCloseBillingDetail.addEventListener('click', () => {
       billingDetailSheet.classList.add('hidden');
-    }
-  });
+    });
+  }
+
+  if (billingDetailSheet) {
+    billingDetailSheet.addEventListener('click', (e) => {
+      if (e.target.id === 'billing-detail-sheet') {
+        billingDetailSheet.classList.add('hidden');
+      }
+    });
+  }
 
   // --- CARGA DE FOTO DE PORTAFOLIO LOCAL ---
   const btnTriggerPortfolioFile = document.getElementById('btn-trigger-portfolio-file');
@@ -2700,33 +2707,35 @@ function initProfessionalEventListeners() {
 
   // --- FORMULARIO DE PORTAFOLIO ---
   const portfolioForm = document.getElementById('pro-portfolio-form');
-  portfolioForm.addEventListener('submit', (e) => {
-    e.preventDefault();
+  if (portfolioForm) {
+    portfolioForm.addEventListener('submit', (e) => {
+      e.preventDefault();
 
-    const title = document.getElementById('port-title').value;
-    const desc = document.getElementById('port-desc').value;
+      const title = document.getElementById('port-title').value;
+      const desc = document.getElementById('port-desc').value;
 
-    const newWork = {
-      id: Date.now(),
-      title,
-      desc,
-      img: pendingPortfolioImage
-    };
+      const newWork = {
+        id: Date.now(),
+        title,
+        desc,
+        img: pendingPortfolioImage
+      };
 
-    const pro = getCurrentPro();
-    if (!pro.portfolio) pro.portfolio = [];
-    pro.portfolio.unshift(newWork);
-    saveToLocalStorage();
-    portfolioForm.reset();
+      const pro = getCurrentPro();
+      if (!pro.portfolio) pro.portfolio = [];
+      pro.portfolio.unshift(newWork);
+      saveToLocalStorage();
+      portfolioForm.reset();
 
-    // Resetear estados de previsualización
-    pendingPortfolioImage = null;
-    if (portImagePreviewContainer) portImagePreviewContainer.classList.add('hidden');
-    if (btnRemovePortfolioFile) btnRemovePortfolioFile.classList.add('hidden');
-    
-    renderPortfolioGallery();
-    showToast("🎉 Trabajo Publicado", "Se ha añadido tu nuevo trabajo a la galería.", "success");
-  });
+      // Resetear estados de previsualización
+      pendingPortfolioImage = null;
+      if (portImagePreviewContainer) portImagePreviewContainer.classList.add('hidden');
+      if (btnRemovePortfolioFile) btnRemovePortfolioFile.classList.add('hidden');
+      
+      renderPortfolioGallery();
+      showToast("🎉 Trabajo Publicado", "Se ha añadido tu nuevo trabajo a la galería.", "success");
+    });
+  }
 
   // --- FORMULARIO DE CONTACTO ---
   const contactForm = document.getElementById('pro-contact-form');
@@ -2739,8 +2748,9 @@ function initProfessionalEventListeners() {
   const proEditNeighborhood = document.getElementById('pro-edit-neighborhood');
   const proEditBio = document.getElementById('pro-edit-bio');
 
-  contactForm.addEventListener('submit', (e) => {
-    e.preventDefault();
+  if (contactForm) {
+    contactForm.addEventListener('submit', (e) => {
+      e.preventDefault();
 
     const proAtHomeEl = document.getElementById('pro-edit-athome');
     const proHasLocalEl = document.getElementById('pro-edit-has-local');
@@ -2852,7 +2862,8 @@ function initProfessionalEventListeners() {
         showToast("¡Datos Actualizados!", "Tus datos de contacto han sido guardados con éxito.", "success");
       }, 700);
     }
-  });
+    });
+  }
 
   // --- INTERRUPTOR DE ACTIVIDAD ---
   const activityToggle = document.getElementById('pro-activity-toggle');
