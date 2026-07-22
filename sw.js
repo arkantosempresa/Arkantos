@@ -1,4 +1,4 @@
-const CACHE_NAME = 'arkantos-v37';
+const CACHE_NAME = 'arkantos-v38';
 const ASSETS = [
   './',
   './index.html',

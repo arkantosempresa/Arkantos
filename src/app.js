@@ -6312,7 +6312,7 @@ function updateChatBadges() {
   if (proBadge) {
     if (state.currentUser) {
       const emailLower = state.currentUser.email.toLowerCase();
-      const pro = state.professionals.find(p => p.email.toLowerCase() === emailLower);
+      const pro = state.professionals.find(p => p && p.email && p.email.toLowerCase() === emailLower);
       if (pro) {
         const proUnreadCount = state.chats.filter(c => c.proId === pro.id && !c.proDeleted && c.unreadByPro).length;
         if (proUnreadCount > 0) {
@@ -8348,6 +8348,7 @@ window.resetSystemDatabase = () => {
     {
       id: 1,
       name: "Carlos Mendoza",
+      email: "carlos.mendoza@arkantos.com",
       category: "Mecanicos",
       specialty: "Inyección Electrónica y Frenos",
       rating: 4.8,
@@ -8367,6 +8368,7 @@ window.resetSystemDatabase = () => {
     {
       id: 2,
       name: "Ana Laura Silva",
+      email: "ana.silva@arkantos.com",
       category: "Peluqueros",
       specialty: "Colorimetría y Estilo Unisex",
       rating: 4.5,
@@ -8386,6 +8388,7 @@ window.resetSystemDatabase = () => {
     {
       id: 3,
       name: "Dr. Hugo Benítez",
+      email: "hugo.benitez@arkantos.com",
       category: "Abogados",
       specialty: "Derecho Civil y Laboral",
       rating: 4.9,
