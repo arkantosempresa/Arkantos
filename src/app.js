@@ -586,6 +586,7 @@ function applyRemoteSyncData(remoteData) {
     try { if (typeof renderClientBookings === 'function') renderClientBookings(); } catch(e) {}
     try { if (typeof renderProCalendar === 'function') renderProCalendar(); } catch(e) {}
     try { if (typeof renderAdminUsers === 'function') renderAdminUsers(); } catch(e) {}
+    try { if (typeof renderAdminAppeals === 'function') renderAdminAppeals(); } catch(e) {}
     try { if (typeof checkCurrentBannedStatus === 'function') checkCurrentBannedStatus(); } catch(e) {}
     try { if (typeof renderActiveChat === 'function') renderActiveChat(); } catch(e) {}
 
@@ -6896,6 +6897,178 @@ window.toggleAdminMobileMenu = (show) => {
   }
 };
 
+function renderAdminAppeals() {
+  const container = document.getElementById('admin-desk-appeals-list-container');
+  const badgeSidebar = document.getElementById('admin-desk-appeals-badge');
+  const badgeCounter = document.getElementById('admin-desk-appeals-counter-badge');
+
+  const pendingAppeals = [];
+  const processedEmails = new Set();
+
+  const checkAndAdd = (item, isPro) => {
+    if (!item || !item.email) return;
+    const emailLower = item.email.toLowerCase().trim();
+    if (processedEmails.has(emailLower)) return;
+
+    if (item.banned && item.appealStatus === 'pending') {
+      processedEmails.add(emailLower);
+      pendingAppeals.push({
+        obj: item,
+        isPro: isPro,
+        name: item.name || "Usuario",
+        email: item.email,
+        phone: item.phone || "Sin teléfono",
+        role: item.role === 'provider' || isPro ? 'Socio Profesional' : 'Cliente',
+        banReason: item.banReason || "Incumplimiento de las normas de servicio o conducta de la aplicación.",
+        appealText: item.appealText || "Sin descargos redactados.",
+        appealImage: item.appealImage || null,
+        appealTimestamp: item.appealTimestamp || Date.now()
+      });
+    }
+  };
+
+  (state.users || []).forEach(u => checkAndAdd(u, u.role === 'provider'));
+  (state.professionals || []).forEach(p => checkAndAdd(p, true));
+
+  const count = pendingAppeals.length;
+  if (badgeSidebar) {
+    badgeSidebar.innerText = count;
+    if (count > 0) {
+      badgeSidebar.classList.remove('hidden');
+    } else {
+      badgeSidebar.classList.add('hidden');
+    }
+  }
+
+  if (badgeCounter) {
+    badgeCounter.innerText = `${count} Apelacion${count === 1 ? '' : 'es'} Pendiente${count === 1 ? '' : 's'}`;
+  }
+
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (count === 0) {
+    container.innerHTML = `
+      <div class="col-span-full text-center text-xs text-slate-500 py-12 italic bg-slate-900/30 rounded-2xl border border-slate-850 flex flex-col items-center justify-center gap-2">
+        <i data-lucide="shield-check" class="w-8 h-8 text-slate-600"></i>
+        <span>No hay apelaciones pendientes por revisar en este momento.</span>
+      </div>
+    `;
+    try { lucide.createIcons(); } catch(e) {}
+    return;
+  }
+
+  pendingAppeals.forEach(ap => {
+    const card = document.createElement('div');
+    card.className = "bg-slate-900 border border-slate-850 rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-xl hover:border-slate-800 transition";
+
+    const formattedDate = new Date(ap.appealTimestamp).toLocaleDateString('es-AR', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+
+    const imgHTML = ap.appealImage ? `
+      <div class="mt-2 bg-slate-955 p-2 rounded-xl border border-slate-850 flex items-center justify-between">
+        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+          <i data-lucide="image" class="w-3.5 h-3.5 text-brand-gold-500"></i> Foto de Prueba Adjunta
+        </span>
+        <button type="button" class="btn-preview-appeal-img text-[9px] font-extrabold text-brand-gold-500 hover:underline flex items-center gap-1 cursor-pointer">
+          <i data-lucide="eye" class="w-3 h-3"></i> Ver Imagen
+        </button>
+      </div>
+    ` : '';
+
+    card.innerHTML = `
+      <div class="space-y-3">
+        <div class="flex justify-between items-start border-b border-slate-850 pb-2.5">
+          <div>
+            <h3 class="font-black text-sm text-white flex items-center gap-2">
+              ${ap.name}
+              <span class="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
+                ap.isPro ? 'bg-brand-gold-500/10 text-brand-gold-500 border border-brand-gold-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+              }">${ap.role}</span>
+            </h3>
+            <span class="text-[10px] text-slate-400 block mt-0.5">${ap.email} • ${ap.phone}</span>
+          </div>
+          <span class="text-[9px] text-slate-500 font-semibold">${formattedDate}</span>
+        </div>
+
+        <div class="bg-red-955/20 border border-red-900/30 p-2.5 rounded-xl">
+          <span class="text-[8px] font-black uppercase tracking-wider text-red-400 block mb-0.5">Motivo del Baneo Aplicado:</span>
+          <p class="text-[11px] text-slate-300 font-medium">"${ap.banReason}"</p>
+        </div>
+
+        <div class="bg-slate-955 p-2.5 rounded-xl border border-slate-850">
+          <span class="text-[8px] font-black uppercase tracking-wider text-amber-400 block mb-0.5">Descargo / Apelación del Usuario:</span>
+          <p class="text-[11px] text-slate-200 font-medium italic">"${ap.appealText}"</p>
+          ${imgHTML}
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-850">
+        <button type="button" class="btn-admin-accept-user-appeal bg-emerald-500 hover:bg-emerald-600 text-slate-955 font-extrabold py-2 px-3 rounded-xl text-xs transition active:scale-95 flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10 cursor-pointer">
+          <i data-lucide="check-circle" class="w-4 h-4"></i> Aceptar Apelación
+        </button>
+        <button type="button" class="btn-admin-reject-user-appeal bg-red-955/40 border border-red-900/60 text-red-400 hover:bg-red-900/40 font-extrabold py-2 px-3 rounded-xl text-xs transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer">
+          <i data-lucide="x-circle" class="w-4 h-4"></i> Rechazar Apelación
+        </button>
+      </div>
+    `;
+
+    if (ap.appealImage) {
+      const btnPreview = card.querySelector('.btn-preview-appeal-img');
+      if (btnPreview) {
+        btnPreview.onclick = () => {
+          window.openImageLightbox(ap.appealImage, `Prueba de Apelación: ${ap.name}`);
+        };
+      }
+    }
+
+    const btnAccept = card.querySelector('.btn-admin-accept-user-appeal');
+    if (btnAccept) {
+      btnAccept.onclick = () => {
+        ap.obj.banned = false;
+        ap.obj.banReason = null;
+        ap.obj.appealStatus = 'accepted';
+
+        if (ap.email) {
+          const emailLower = ap.email.toLowerCase().trim();
+          const u = state.users.find(x => x && x.email && x.email.toLowerCase().trim() === emailLower);
+          if (u) { u.banned = false; u.banReason = null; u.appealStatus = 'accepted'; }
+          const p = state.professionals.find(x => x && x.email && x.email.toLowerCase().trim() === emailLower);
+          if (p) { p.banned = false; p.banReason = null; p.appealStatus = 'accepted'; }
+        }
+
+        saveToLocalStorage();
+        showToast("✅ Apelación Aceptada", `Se restituyó la cuenta de ${ap.name}.`, "success");
+        renderAdminAppeals();
+      };
+    }
+
+    const btnReject = card.querySelector('.btn-admin-reject-user-appeal');
+    if (btnReject) {
+      btnReject.onclick = () => {
+        ap.obj.appealStatus = 'rejected';
+
+        if (ap.email) {
+          const emailLower = ap.email.toLowerCase().trim();
+          const u = state.users.find(x => x && x.email && x.email.toLowerCase().trim() === emailLower);
+          if (u) { u.appealStatus = 'rejected'; }
+          const p = state.professionals.find(x => x && x.email && x.email.toLowerCase().trim() === emailLower);
+          if (p) { p.appealStatus = 'rejected'; }
+        }
+
+        saveToLocalStorage();
+        showToast("❌ Apelación Rechazada", `La sanción a ${ap.name} se mantiene firme.`, "warning");
+        renderAdminAppeals();
+      };
+    }
+
+    container.appendChild(card);
+  });
+
+  try { lucide.createIcons(); } catch(e) {}
+}
+
 window.switchAdminSubview = (view) => {
   if (window.toggleAdminMobileMenu) {
     window.toggleAdminMobileMenu(false);
@@ -6910,10 +7083,11 @@ window.switchAdminSubview = (view) => {
   const tabUsers = document.getElementById('btn-admin-desk-tab-users');
   const tabChats = document.getElementById('btn-admin-desk-tab-chats');
   const tabFinances = document.getElementById('btn-admin-desk-tab-finances');
+  const tabAppeals = document.getElementById('btn-admin-desk-tab-appeals');
 
   // Reset tab classes to inactive styling
   const inactiveClass = "w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white hover:bg-slate-850";
-  [tabOverview, tabApprovals, tabUsers, tabChats, tabFinances].forEach(t => {
+  [tabOverview, tabApprovals, tabUsers, tabChats, tabFinances, tabAppeals].forEach(t => {
     if (t) t.className = inactiveClass;
   });
 
@@ -6944,6 +7118,11 @@ window.switchAdminSubview = (view) => {
     if (el) el.classList.remove('hidden');
     activeTab = tabFinances;
     renderAdminFinances();
+  } else if (view === 'appeals') {
+    const el = document.getElementById('admin-desk-view-appeals');
+    if (el) el.classList.remove('hidden');
+    activeTab = tabAppeals;
+    renderAdminAppeals();
   }
 
   if (activeTab) {
