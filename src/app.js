@@ -80,6 +80,41 @@ let currentCalendarStartOfWeek = null;
 let clientProfileEditing = false;
 let pendingClientAvatarImage = null;
 
+// Funciones auxiliares de fecha para evitar problemas de formato y zona horaria (UTC/Local)
+function formatLocalDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function parseDateString(dateStr) {
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  }
+  return new Date();
+}
+
+// Definir la navegación global del calendario mensual (Top level para evitar fallas de inicialización)
+window.changeProCalendarMonth = (offset) => {
+  console.log("[Arkantos Calendar] changeProCalendarMonth clicked. Offset:", offset);
+  if (!state.currentCalendarMonth) {
+    state.currentCalendarMonth = new Date();
+  }
+  // Convertir a Date object de forma segura
+  const current = new Date(state.currentCalendarMonth);
+  if (isNaN(current.getTime())) {
+    console.error("[Arkantos Calendar] Invalid date object in state:", state.currentCalendarMonth);
+    state.currentCalendarMonth = new Date();
+  }
+  
+  // Fijar el día en 1 antes de cambiar de mes para evitar el desbordamiento de fin de mes
+  state.currentCalendarMonth = new Date(current.getFullYear(), current.getMonth() + offset, 1);
+  console.log("[Arkantos Calendar] New currentCalendarMonth set to:", state.currentCalendarMonth);
+  renderProCalendar();
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   try {
     loadFromLocalStorage(); // Carga de datos persistidos
@@ -2853,33 +2888,50 @@ function initProfessionalEventListeners() {
     });
   }
 
-  document.getElementById('btn-back-to-chat-list').addEventListener('click', () => {
-    document.getElementById('active-chat-box').classList.add('hidden');
-    document.getElementById('pro-chat-list-container').classList.remove('hidden');
-    state.activeChatId = null;
-    renderChatsList();
-  });
+  const btnBackToChatList = document.getElementById('btn-back-to-chat-list');
+  if (btnBackToChatList) {
+    btnBackToChatList.addEventListener('click', () => {
+      const activeChatBox = document.getElementById('active-chat-box');
+      if (activeChatBox) activeChatBox.classList.add('hidden');
+      const chatListCont = document.getElementById('pro-chat-list-container');
+      if (chatListCont) chatListCont.classList.remove('hidden');
+      state.activeChatId = null;
+      renderChatsList();
+    });
+  }
 
-  document.getElementById('btn-send-chat-msg').addEventListener('click', sendChatMessage);
-  document.getElementById('chat-input-text').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendChatMessage();
-  });
+  const btnSendChatMsg = document.getElementById('btn-send-chat-msg');
+  if (btnSendChatMsg) {
+    btnSendChatMsg.addEventListener('click', sendChatMessage);
+  }
 
-  // Listener para el botón de Soporte Pro
-  document.getElementById('btn-pro-support').addEventListener('click', () => {
-    openSupportChat('pro');
-  });
+  const chatInputText = document.getElementById('chat-input-text');
+  if (chatInputText) {
+    chatInputText.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendChatMessage();
+    });
+  }
 
-  // Definir la navegación global del calendario
-  window.changeProCalendarMonth = (offset) => {
-    if (!state.currentCalendarMonth) {
-      state.currentCalendarMonth = new Date();
-    }
-    const current = new Date(state.currentCalendarMonth);
-    current.setMonth(current.getMonth() + offset);
-    state.currentCalendarMonth = current;
-    renderProCalendar();
-  };
+  const btnProSupport = document.getElementById('btn-pro-support');
+  if (btnProSupport) {
+    btnProSupport.addEventListener('click', () => {
+      openSupportChat('pro');
+    });
+  }
+
+  // Oyentes de respaldo para navegación del calendario mensual (en caso de caché del HTML)
+  const btnPrev = document.getElementById('btn-pro-prev-month');
+  if (btnPrev) {
+    btnPrev.addEventListener('click', () => {
+      window.changeProCalendarMonth(-1);
+    });
+  }
+  const btnNext = document.getElementById('btn-pro-next-month');
+  if (btnNext) {
+    btnNext.addEventListener('click', () => {
+      window.changeProCalendarMonth(1);
+    });
+  }
 
   // Botón Historial de Trabajos
   const btnProHistory = document.getElementById('btn-pro-history');
@@ -3386,13 +3438,14 @@ function renderProCalendar() {
   // Inicializar estado del mes actual
   if (!state.currentCalendarMonth) {
     state.currentCalendarMonth = new Date();
+    state.currentCalendarMonth.setDate(1); // Evitar desbordamiento
   }
   const date = state.currentCalendarMonth;
   const year = date.getFullYear();
   const month = date.getMonth();
 
   // Inicializar día seleccionado si no existe
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = formatLocalDate(new Date());
   if (!state.selectedCalendarDate) {
     state.selectedCalendarDate = todayStr;
   }
@@ -3423,7 +3476,7 @@ function renderProCalendar() {
   // 2. Días del mes actual
   for (let day = 1; day <= totalDays; day++) {
     const cellDate = new Date(year, month, day);
-    const cellDateStr = cellDate.toISOString().split('T')[0];
+    const cellDateStr = formatLocalDate(cellDate);
 
     const cell = document.createElement('div');
     cell.setAttribute('data-date', cellDateStr);
@@ -3468,7 +3521,7 @@ function renderProCalendar() {
   }
 
   // --- RENDERIZAR RESERVAS DEL DÍA SELECCIONADO ---
-  const selDate = new Date(state.selectedCalendarDate + 'T00:00:00');
+  const selDate = parseDateString(state.selectedCalendarDate);
   
   // Establecer etiqueta de día seleccionado
   const diasSemana = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
