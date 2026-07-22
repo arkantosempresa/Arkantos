@@ -1438,46 +1438,58 @@
               <i data-lucide="calendar-check" class="w-4 h-4 text-brand-gold-500"></i>
               Calendario de Reservas
             </span>
-            <button id="btn-pro-history" class="bg-slate-950 hover:bg-slate-900 border border-brand-gold-500/30 hover:border-brand-gold-500 text-brand-gold-500 font-extrabold px-3 py-1.5 rounded-full text-[9px] uppercase tracking-wider transition flex items-center gap-1.5 active:scale-95 whitespace-nowrap shrink-0">
+            <button id="btn-pro-history" class="bg-slate-950 hover:bg-slate-900 border border-brand-gold-500/30 hover:border-brand-gold-500 text-brand-gold-500 font-extrabold px-3 py-1.5 rounded-full text-[9px] uppercase tracking-wider transition flex items-center gap-1.5 active:scale-95 whitespace-nowrap shrink-0 cursor-pointer">
               <i data-lucide="history" class="w-3.5 h-3.5 text-brand-gold-500"></i>
               <span>Historial</span>
               <span id="lbl-pro-history-count" class="bg-brand-gold-500 text-slate-950 font-black px-1.5 py-0.5 rounded-full text-[8px]">0</span>
             </button>
           </div>
           <p class="text-[10px] text-slate-500 leading-normal -mt-1">
-            Visualiza los bloques reservados de la semana. Puedes rechazar un turno ya aceptado, pero **perjudicará directamente tu reputación**.
+            Visualiza los bloques reservados y horarios del mes. Puedes rechazar un turno ya aceptado, pero **perjudicará directamente tu reputación**.
           </p>
 
-          <!-- Selector de Semanas/Meses/Años -->
-          <div class="flex flex-col gap-2 bg-slate-950/60 p-3 rounded-xl border border-slate-850/80">
+          <!-- Monthly Calendar Navigation -->
+          <div class="flex flex-col gap-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-850/80 mt-1">
             <div class="flex items-center justify-between">
-              <button id="btn-pro-prev-week" class="w-8 h-8 rounded-lg bg-slate-850 hover:bg-slate-800 flex items-center justify-center text-slate-350 transition active:scale-90">
-                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+              <button type="button" id="btn-pro-prev-month" class="w-9 h-9 rounded-xl bg-slate-900 border border-slate-850 hover:bg-slate-800 flex items-center justify-center text-slate-350 transition active:scale-95 cursor-pointer">
+                <i data-lucide="chevron-left" class="w-4.5 h-4.5"></i>
               </button>
               <div class="text-center">
-                <span id="pro-calendar-week-label" class="text-xs font-bold text-white block">Cargando...</span>
-                <span class="text-[9px] text-slate-550 font-semibold uppercase tracking-wider">Navegar por Semana</span>
+                <span id="pro-calendar-month-label" class="text-xs font-black text-white uppercase tracking-wider block">Cargando...</span>
+                <span class="text-[8px] text-brand-gold-500 font-bold uppercase tracking-widest mt-0.5 block">Selecciona un día</span>
               </div>
-              <button id="btn-pro-next-week" class="w-8 h-8 rounded-lg bg-slate-850 hover:bg-slate-800 flex items-center justify-center text-slate-350 transition active:scale-90">
-                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              <button type="button" id="btn-pro-next-month" class="w-9 h-9 rounded-xl bg-slate-900 border border-slate-850 hover:bg-slate-800 flex items-center justify-center text-slate-350 transition active:scale-95 cursor-pointer">
+                <i data-lucide="chevron-right" class="w-4.5 h-4.5"></i>
               </button>
             </div>
-            <hr class="border-slate-900 my-1">
-            <div class="flex items-center justify-between gap-3">
-              <div class="flex-1 flex items-center gap-1">
-                <label class="text-[9px] font-bold text-slate-500 block uppercase">Mes:</label>
-                <select id="pro-calendar-month-select" class="flex-1 bg-slate-900 border border-slate-800 rounded-lg py-1 px-1.5 text-[10px] text-white focus:outline-none focus:border-brand-gold-500"></select>
-              </div>
-              <div class="flex-1 flex items-center gap-1">
-                <label class="text-[9px] font-bold text-slate-500 block uppercase">Año:</label>
-                <select id="pro-calendar-year-select" class="flex-1 bg-slate-900 border border-slate-800 rounded-lg py-1 px-1.5 text-[10px] text-white focus:outline-none focus:border-brand-gold-500"></select>
-              </div>
+            
+            <!-- Calendar Grid header (Days of week) -->
+            <div class="grid grid-cols-7 gap-1 text-center text-[9px] font-black text-slate-550 uppercase tracking-widest border-b border-slate-900 pb-1.5">
+              <span>Lun</span>
+              <span>Mar</span>
+              <span>Mie</span>
+              <span>Jue</span>
+              <span>Vie</span>
+              <span>Sab</span>
+              <span>Dom</span>
+            </div>
+
+            <!-- Calendar Days Grid -->
+            <div id="pro-calendar-days-grid" class="grid grid-cols-7 gap-1 text-center">
+              <!-- Dynamically populated days -->
             </div>
           </div>
 
-          <div id="pro-calendar-weekly-list" class="space-y-3 mt-1"></div>
+          <!-- Bookings list for Selected Day -->
+          <div class="space-y-2 mt-1">
+            <span class="text-[9.5px] font-black uppercase text-slate-400 tracking-wider block" id="lbl-pro-selected-day">
+              Reservas del día seleccionado
+            </span>
+            <div id="pro-calendar-selected-day-list" class="space-y-2.5">
+              <!-- Dynamically loaded list of bookings for the selected day -->
+            </div>
+          </div>
         </div>
-
         <div class="bg-slate-900/90 border border-slate-850 rounded-2xl p-4 flex flex-col gap-3">
           <span class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1">
             <i data-lucide="calendar" class="w-4 h-4 text-brand-gold-500"></i>
@@ -3170,7 +3182,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <!-- Core Logic Loader -->
-  <script src="src/app.js?v=15"></script>
+  <script src="src/app.js?v=16"></script>
 
   <!-- Script de Inicialización PWA Service Worker e Instalación App Web -->
   <script>
@@ -3178,7 +3190,7 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=15')
+        navigator.serviceWorker.register('./sw.js?v=16')
           .then(reg => {
             console.log('Service Worker ARKANTOS PWA listo:', reg);
             reg.update();

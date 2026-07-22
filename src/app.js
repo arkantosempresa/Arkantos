@@ -2870,64 +2870,24 @@ function initProfessionalEventListeners() {
     openSupportChat('pro');
   });
 
-  // Inicializar selects del calendario por semanas/meses/años
-  const monthSelect = document.getElementById('pro-calendar-month-select');
-  const yearSelect = document.getElementById('pro-calendar-year-select');
+  // Inicializar navegación del calendario mensual
+  const btnPrevMonth = document.getElementById('btn-pro-prev-month');
+  const btnNextMonth = document.getElementById('btn-pro-next-month');
 
-  if (monthSelect && yearSelect) {
-    const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    monthSelect.innerHTML = '';
-    months.forEach((m, idx) => {
-      const opt = document.createElement('option');
-      opt.value = idx;
-      opt.innerText = m;
-      monthSelect.appendChild(opt);
-    });
-
-    const years = [2026, 2027, 2028];
-    yearSelect.innerHTML = '';
-    years.forEach(y => {
-      const opt = document.createElement('option');
-      opt.value = y;
-      opt.innerText = y;
-      yearSelect.appendChild(opt);
-    });
-
-    monthSelect.addEventListener('change', () => {
-      const selectedMonth = parseInt(monthSelect.value);
-      const selectedYear = parseInt(yearSelect.value);
-      const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1);
-      currentCalendarStartOfWeek = getStartOfWeek(firstDayOfMonth);
-      renderProCalendar();
-    });
-
-    yearSelect.addEventListener('change', () => {
-      const selectedMonth = parseInt(monthSelect.value);
-      const selectedYear = parseInt(yearSelect.value);
-      const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1);
-      currentCalendarStartOfWeek = getStartOfWeek(firstDayOfMonth);
+  if (btnPrevMonth) {
+    btnPrevMonth.addEventListener('click', () => {
+      const current = state.currentCalendarMonth || new Date();
+      current.setMonth(current.getMonth() - 1);
+      state.currentCalendarMonth = current;
       renderProCalendar();
     });
   }
 
-  // Botones de navegación de semanas
-  const btnPrevWeek = document.getElementById('btn-pro-prev-week');
-  const btnNextWeek = document.getElementById('btn-pro-next-week');
-
-  if (btnPrevWeek) {
-    btnPrevWeek.addEventListener('click', () => {
-      const start = new Date(currentCalendarStartOfWeek);
-      start.setDate(start.getDate() - 7);
-      currentCalendarStartOfWeek = start;
-      renderProCalendar();
-    });
-  }
-
-  if (btnNextWeek) {
-    btnNextWeek.addEventListener('click', () => {
-      const start = new Date(currentCalendarStartOfWeek);
-      start.setDate(start.getDate() + 7);
-      currentCalendarStartOfWeek = start;
+  if (btnNextMonth) {
+    btnNextMonth.addEventListener('click', () => {
+      const current = state.currentCalendarMonth || new Date();
+      current.setMonth(current.getMonth() + 1);
+      state.currentCalendarMonth = current;
       renderProCalendar();
     });
   }
@@ -3414,38 +3374,17 @@ function sendChatMessage() {
 }
 
 // --- REDISEÑO DE CALENDARIO DE RESERVAS ---
+// --- REDISEÑO DE CALENDARIO DE RESERVAS (MENSUAL SIMPLIFICADO) ---
 function renderProCalendar() {
-  const container = document.getElementById('pro-calendar-weekly-list');
-  if (!container) return;
-  container.innerHTML = '';
+  const gridContainer = document.getElementById('pro-calendar-days-grid');
+  const monthLabel = document.getElementById('pro-calendar-month-label');
+  const selectedDayList = document.getElementById('pro-calendar-selected-day-list');
+  const selectedDayLabel = document.getElementById('lbl-pro-selected-day');
+
+  if (!gridContainer || !monthLabel || !selectedDayList) return;
 
   const pro = getCurrentPro();
   if (!pro) return;
-
-  if (!currentCalendarStartOfWeek) {
-    currentCalendarStartOfWeek = getStartOfWeek(new Date());
-  }
-
-  const startOfWeek = getStartOfWeek(new Date(currentCalendarStartOfWeek));
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
-
-  // Actualizar etiqueta de la semana
-  const formatShortDate = (d) => {
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    return `${day}/${month}/${d.getFullYear()}`;
-  };
-  const weekLabel = document.getElementById('pro-calendar-week-label');
-  if (weekLabel) {
-    weekLabel.innerText = `Semana: ${formatShortDate(startOfWeek)} - ${formatShortDate(endOfWeek)}`;
-  }
-
-  // Actualizar selects de mes y año
-  const monthSelect = document.getElementById('pro-calendar-month-select');
-  const yearSelect = document.getElementById('pro-calendar-year-select');
-  if (monthSelect) monthSelect.value = startOfWeek.getMonth();
-  if (yearSelect) yearSelect.value = startOfWeek.getFullYear();
 
   // Actualizar recuento de historial en el botón
   const finishedBookings = state.bookings.filter(b => 
@@ -3455,101 +3394,175 @@ function renderProCalendar() {
   const historyBtnCount = document.getElementById('lbl-pro-history-count');
   if (historyBtnCount) historyBtnCount.innerText = finishedBookings.length;
 
-  const dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
+  // Inicializar estado del mes actual
+  if (!state.currentCalendarMonth) {
+    state.currentCalendarMonth = new Date();
+  }
+  const date = state.currentCalendarMonth;
+  const year = date.getFullYear();
+  const month = date.getMonth();
 
-  dias.forEach((day, index) => {
-    const currentDate = new Date(startOfWeek);
-    currentDate.setDate(startOfWeek.getDate() + index);
-    const dateStr = currentDate.toISOString().split('T')[0];
+  // Inicializar día seleccionado si no existe
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (!state.selectedCalendarDate) {
+    state.selectedCalendarDate = todayStr;
+  }
 
-    const slots = pro.agenda[day] || [];
-    const dayCard = document.createElement('div');
-    dayCard.className = "bg-slate-955/60 border border-slate-850 rounded-xl p-3 flex flex-col gap-2";
+  // Establecer etiqueta de mes
+  const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  monthLabel.innerText = `${months[month]} ${year}`;
 
+  // Vaciar la grilla de días
+  gridContainer.innerHTML = '';
+
+  // Calcular primer día y total de días
+  const firstDayOfMonth = new Date(year, month, 1);
+  let startDayIndex = firstDayOfMonth.getDay();
+  // Ajustar para que Lunes sea 0 y Domingo sea 6
+  startDayIndex = (startDayIndex === 0) ? 6 : startDayIndex - 1;
+
+  const totalDays = new Date(year, month + 1, 0).getDate();
+
+  // 1. Celdas vacías del mes anterior
+  for (let i = 0; i < startDayIndex; i++) {
+    const emptyCell = document.createElement('div');
+    emptyCell.className = "py-2.5 text-transparent select-none text-[11px] font-bold";
+    emptyCell.innerText = "";
+    gridContainer.appendChild(emptyCell);
+  }
+
+  // 2. Días del mes actual
+  for (let day = 1; day <= totalDays; day++) {
+    const cellDate = new Date(year, month, day);
+    const cellDateStr = cellDate.toISOString().split('T')[0];
+
+    const cell = document.createElement('div');
+    cell.setAttribute('data-date', cellDateStr);
+
+    const isSelected = (state.selectedCalendarDate === cellDateStr);
+    const isToday = (todayStr === cellDateStr);
+
+    // Contar reservas de este profesional para este día
     const dayBookings = state.bookings.filter(b => 
       b.proId === pro.id && 
-      b.date === dateStr && 
+      b.date === cellDateStr && 
       (b.status === "Aceptado" || b.status === "Calificado" || b.status === "Finalizado")
     );
-    
-    const dayLabel = `${day} ${currentDate.getDate()}/${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
 
-    dayCard.innerHTML = `
-      <div class="flex justify-between items-center border-b border-slate-900 pb-1.5">
-        <h4 class="font-bold text-white text-xs">${dayLabel}</h4>
-        <span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
-          dayBookings.length > 0 ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-slate-900 text-slate-500'
-        }">
-          ${dayBookings.length} Contratados
-        </span>
-      </div>
-      <div class="space-y-2 mt-1.5" id="pro-cal-slots-${day}"></div>
-    `;
-
-    container.appendChild(dayCard);
-
-    const slotsContainer = document.getElementById(`pro-cal-slots-${day}`);
-    
-    if (slots.length === 0) {
-      slotsContainer.innerHTML = `<span class="text-[9px] text-slate-655 italic">Sin horarios en agenda</span>`;
-      return;
+    let activeStyle = "text-slate-350 hover:bg-slate-800 hover:text-white";
+    if (isSelected) {
+      activeStyle = "bg-brand-gold-500 text-slate-950 font-black shadow-md shadow-brand-gold-500/10";
+    } else if (isToday) {
+      activeStyle = "border border-brand-gold-500/40 text-brand-gold-500 font-bold bg-brand-gold-500/5";
     }
 
-    slots.forEach(time => {
-      const activeBooking = dayBookings.find(b => b.time === time);
-      const row = document.createElement('div');
-      
-      if (activeBooking) {
-        let statusBadgeHTML = '';
-        let actionButtonsHTML = '';
+    cell.className = `relative py-2.5 text-[11px] font-bold rounded-xl transition cursor-pointer flex flex-col items-center justify-center aspect-square ${activeStyle}`;
+    cell.innerHTML = `<span>${day}</span>`;
 
-        if (activeBooking.status === "Aceptado") {
-          statusBadgeHTML = `<span class="text-[9px] bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded">Confirmado</span>`;
-          actionButtonsHTML = `
-            <div class="flex gap-2">
-              <button type="button" onclick="window.rejectAcceptedBooking('${activeBooking.id}')" class="bg-slate-900 hover:bg-red-900/25 border border-red-900/40 text-red-400 font-bold px-2 py-1 rounded text-[10px] transition flex items-center gap-1 active:scale-95" title="Rechazar y cancelar el servicio">
-                <i data-lucide="x-circle" class="w-3.5 h-3.5"></i>
-                Rechazar
-              </button>
-              <button type="button" onclick="window.finalizeBooking('${activeBooking.id}')" class="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 font-bold px-2.5 py-1 rounded text-[10px] transition flex items-center gap-1 active:scale-95" title="Marcar como finalizado">
-                <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
-                Finalizar
-              </button>
-            </div>
-          `;
-        } else if (activeBooking.status === "Finalizado") {
-          statusBadgeHTML = `<span class="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20">Finalizado</span>`;
-        } else if (activeBooking.status === "Calificado") {
-          statusBadgeHTML = `<span class="text-[9px] bg-brand-gold-500/10 text-brand-gold-500 px-1.5 py-0.5 rounded border border-brand-gold-500/20">Calificado</span>`;
-        }
-
-        row.className = "bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col gap-2 shadow-sm";
-        row.innerHTML = `
-          <div class="flex justify-between items-center">
-            <span class="text-xs font-bold text-slate-200 flex items-center gap-1">
-              <span>✔️ ${time} hs</span>
-              ${statusBadgeHTML}
-            </span>
-            <span class="text-[9px] text-slate-500 font-semibold">Reserva #${activeBooking.id}</span>
-          </div>
-          <div class="flex justify-between items-end">
-            <div>
-              <p class="text-[10px] text-white font-bold">Cliente Particular</p>
-              <p class="text-[9px] text-slate-455 mt-0.5">${pro.specialty}</p>
-              <p class="text-[9px] text-brand-gold-500 font-extrabold mt-0.5">Cobro: $${activeBooking.price.toLocaleString('es-AR')}</p>
-            </div>
-            ${actionButtonsHTML}
-          </div>
-        `;
+    // Si tiene reservas, añadir punto indicador
+    if (dayBookings.length > 0) {
+      const dot = document.createElement('span');
+      if (isSelected) {
+        dot.className = "absolute bottom-1 w-1 h-1 rounded-full bg-slate-950";
       } else {
-        row.className = "bg-slate-955 border border-slate-900 rounded-lg p-2 flex justify-between items-center text-[10px]";
-        row.innerHTML = `
-          <span class="text-slate-455 font-medium">🔓 ${time} hs</span>
-          <span class="text-[8px] text-slate-600 font-bold uppercase">Libre para Agendar</span>
-        `;
+        dot.className = "absolute bottom-1 w-1 h-1 rounded-full bg-brand-gold-500";
       }
-      slotsContainer.appendChild(row);
+      cell.appendChild(dot);
+    }
+
+    cell.addEventListener('click', () => {
+      state.selectedCalendarDate = cellDateStr;
+      renderProCalendar();
     });
+
+    gridContainer.appendChild(cell);
+  }
+
+  // --- RENDERIZAR RESERVAS DEL DÍA SELECCIONADO ---
+  const selDate = new Date(state.selectedCalendarDate + 'T00:00:00');
+  
+  // Establecer etiqueta de día seleccionado
+  const diasSemana = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  const selDayName = diasSemana[selDate.getDay()];
+  const selDayNum = String(selDate.getDate()).padStart(2, '0');
+  const selMonthNum = String(selDate.getMonth() + 1).padStart(2, '0');
+  
+  if (selectedDayLabel) {
+    selectedDayLabel.innerText = `Reservas del ${selDayName} ${selDayNum}/${selMonthNum}`;
+  }
+
+  // Buscar slots en la agenda para este día
+  const diasAgenda = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
+  const dayAgendaName = diasAgenda[selDate.getDay()];
+  const slots = pro.agenda[dayAgendaName] || [];
+
+  selectedDayList.innerHTML = '';
+
+  const dayBookings = state.bookings.filter(b => 
+    b.proId === pro.id && 
+    b.date === state.selectedCalendarDate && 
+    (b.status === "Aceptado" || b.status === "Calificado" || b.status === "Finalizado")
+  );
+
+  if (slots.length === 0) {
+    selectedDayList.innerHTML = `<div class="text-center text-xs text-slate-550 py-6 italic bg-slate-950/40 rounded-2xl border border-slate-850">Sin horarios definidos en tu agenda para los días ${selDayName}.</div>`;
+    return;
+  }
+
+  slots.forEach(time => {
+    const activeBooking = dayBookings.find(b => b.time === time);
+    const row = document.createElement('div');
+    
+    if (activeBooking) {
+      let statusBadgeHTML = '';
+      let actionButtonsHTML = '';
+
+      if (activeBooking.status === "Aceptado") {
+        statusBadgeHTML = `<span class="text-[9px] bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded">Confirmado</span>`;
+        actionButtonsHTML = `
+          <div class="flex gap-2">
+            <button type="button" onclick="window.rejectAcceptedBooking('${activeBooking.id}')" class="bg-slate-900 hover:bg-red-900/25 border border-red-900/40 text-red-400 font-bold px-2 py-1 rounded text-[10px] transition flex items-center gap-1 active:scale-95 cursor-pointer" title="Rechazar y cancelar el servicio">
+              <i data-lucide="x-circle" class="w-3.5 h-3.5"></i>
+              Rechazar
+            </button>
+            <button type="button" onclick="window.finalizeBooking('${activeBooking.id}')" class="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 font-bold px-2.5 py-1 rounded text-[10px] transition flex items-center gap-1 active:scale-95 cursor-pointer" title="Marcar como finalizado">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+              Finalizar
+            </button>
+          </div>
+        `;
+      } else if (activeBooking.status === "Finalizado") {
+        statusBadgeHTML = `<span class="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20">Finalizado</span>`;
+      } else if (activeBooking.status === "Calificado") {
+        statusBadgeHTML = `<span class="text-[9px] bg-brand-gold-500/10 text-brand-gold-500 px-1.5 py-0.5 rounded border border-brand-gold-500/20">Calificado</span>`;
+      }
+
+      row.className = "bg-slate-900/90 border border-slate-850 rounded-2xl p-3.5 flex flex-col gap-2 shadow-sm";
+      row.innerHTML = `
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-black text-slate-200 flex items-center gap-1.5">
+            <span>📅 ${time} hs</span>
+            ${statusBadgeHTML}
+          </span>
+          <span class="text-[9px] text-slate-500 font-semibold">Reserva #${activeBooking.id}</span>
+        </div>
+        <div class="flex justify-between items-end">
+          <div>
+            <p class="text-[10px] text-white font-bold">${activeBooking.clientName || 'Cliente Particular'}</p>
+            <p class="text-[9px] text-slate-455 mt-0.5">${pro.specialty}</p>
+            <p class="text-[9px] text-brand-gold-500 font-black mt-0.5">Cobro: $${activeBooking.price.toLocaleString('es-AR')}</p>
+          </div>
+          ${actionButtonsHTML}
+        </div>
+      `;
+    } else {
+      row.className = "bg-slate-955 border border-slate-900 rounded-lg p-2.5 flex justify-between items-center text-[10px]";
+      row.innerHTML = `
+        <span class="text-slate-455 font-medium">🔓 ${time} hs</span>
+        <span class="text-[8px] text-slate-600 font-bold uppercase tracking-wider">Libre para Agendar</span>
+      `;
+    }
+    selectedDayList.appendChild(row);
   });
 
   lucide.createIcons();
