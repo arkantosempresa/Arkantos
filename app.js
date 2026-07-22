@@ -1,15 +1,53 @@
-// Control de versión de Base de Datos para pruebas automáticas limpias (Limpieza total excepto Admin)
-const DB_VERSION = '4.0';
+// Control de versión de Base de Datos para pruebas automáticas limpias
+const DB_VERSION = '2.2';
 if (localStorage.getItem('arkantos_db_version') !== DB_VERSION) {
   localStorage.clear();
   localStorage.setItem('arkantos_db_version', DB_VERSION);
 }
 
-const initialProfessionals = [];
+// Datos de prueba de profesionales integrados directamente
+const initialProfessionals = [
+  {
+    id: 1,
+    name: "Test Provider",
+    category: "Abogados",
+    specialty: "Abogado Penalista General",
+    bio: "Perfil de prueba inicial listo para usar. Ofrezco asesoramiento integral.",
+    rating: 5.0,
+    reviewsCount: 0,
+    positiveReviewsPercent: 100,
+    acceptanceStars: 5.0,
+    acceptancePercent: 100,
+    location: { lat: -27.3670, lng: -55.8960, neighborhood: "Microcentro" },
+    price: 15000,
+    atHome: false,
+    hasLocal: true,
+    address: "Av. Uruguay 1234, Posadas",
+    verified: true,
+    active: true,
+    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=120&h=120",
+    phone: "+54 376 422-2222",
+    email: "test@provider.com",
+    portfolio: [
+      { id: 1, title: "Asesoramiento Penal Exitoso", desc: "Defensa penal integral en caso de siniestro vial con resolución favorable.", img: "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=150&h=120" },
+      { id: 2, title: "Redacción de Contratos", desc: "Redacción de contratos de alquiler comerciales para locales céntricos.", img: "https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&q=80&w=150&h=120" }
+    ],
+    agenda: {
+      Lunes: ["08:00", "09:00", "10:00", "11:00", "15:00", "17:00"],
+      Martes: ["08:00", "09:00", "10:00", "11:00", "15:00", "17:00"],
+      Miercoles: ["08:00", "09:00", "10:00", "11:00", "15:00", "17:00"],
+      Jueves: ["08:00", "09:00", "10:00", "11:00", "15:00", "17:00"],
+      Viernes: ["08:00", "09:00", "10:00", "11:00"],
+      Sabado: [],
+      Domingo: []
+    }
+  }
+];
 
-// Usuarios Base por Defecto (Solo Administrador)
+// Usuarios Base por Defecto
 const defaultUsers = [
-  { name: "Administrador", email: "admin@arkantos.com", password: "admin", role: "admin" }
+  { name: "Test Client", email: "test@client.com", password: "123", phone: "+54 376 411-1111", role: "client" },
+  { name: "Test Provider", email: "test@provider.com", password: "123", phone: "+54 376 422-2222", role: "provider", hasLocal: true, address: "Av. Uruguay 1234, Posadas" }
 ];
 
 // Estado global
@@ -80,86 +118,10 @@ let currentCalendarStartOfWeek = null;
 let clientProfileEditing = false;
 let pendingClientAvatarImage = null;
 
-// Funciones auxiliares de fecha para evitar problemas de formato y zona horaria (UTC/Local)
-function formatLocalDate(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function parseDateString(dateStr) {
-  const parts = dateStr.split('-');
-  if (parts.length === 3) {
-    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-  }
-  return new Date();
-}
-
-// Definir la navegación global del calendario mensual (Top level para evitar fallas de inicialización)
-window.changeProCalendarMonth = (offset) => {
-  console.log("[Arkantos Calendar] changeProCalendarMonth clicked. Offset:", offset);
-  if (!state.currentCalendarMonth) {
-    state.currentCalendarMonth = new Date();
-  }
-  // Convertir a Date object de forma segura
-  const current = new Date(state.currentCalendarMonth);
-  if (isNaN(current.getTime())) {
-    console.error("[Arkantos Calendar] Invalid date object in state:", state.currentCalendarMonth);
-    state.currentCalendarMonth = new Date();
-  }
-  
-  // Fijar el día en 1 antes de cambiar de mes para evitar el desbordamiento de fin de mes
-  state.currentCalendarMonth = new Date(current.getFullYear(), current.getMonth() + offset, 1);
-  console.log("[Arkantos Calendar] New currentCalendarMonth set to:", state.currentCalendarMonth);
-  renderProCalendar();
-};
-
-// Control de colapsables en la disponibilidad del profesional
-window.toggleAvailabilityDay = (day) => {
-  if (!state.expandedAvailabilityDays) {
-    state.expandedAvailabilityDays = {};
-  }
-  state.expandedAvailabilityDays[day] = !state.expandedAvailabilityDays[day];
-  renderAvailabilityEditor();
-};
-
-// Agregar horario personalizado manual por día
-window.addCustomAvailabilityTime = (day) => {
-  const input = document.getElementById(`custom-time-${day}`);
-  if (!input) return;
-  const timeVal = input.value;
-  if (!timeVal) {
-    showToast("⚠️ Horario inválido", "Por favor selecciona una hora.", "warning");
-    return;
-  }
-
-  const pro = getCurrentPro();
-  if (!pro) return;
-
-  if (!pro.agenda[day]) {
-    pro.agenda[day] = [];
-  }
-
-  if (pro.agenda[day].includes(timeVal)) {
-    showToast("⚠️ Ya registrado", "Ese horario ya está disponible en tu agenda.", "warning");
-    return;
-  }
-
-  pro.agenda[day].push(timeVal);
-  pro.agenda[day].sort();
-
-  saveToLocalStorage();
-  renderAvailabilityEditor();
-  renderProCalendar();
-  showToast("⏰ Horario Agregado", `Se añadió ${timeVal} hs a tu agenda del ${day}.`, "success");
-};
-
 document.addEventListener('DOMContentLoaded', () => {
   try {
     loadFromLocalStorage(); // Carga de datos persistidos
     currentCalendarStartOfWeek = getStartOfWeek(new Date());
-    syncProActivityUI();
   } catch (e) {
     console.error("Error al cargar de localStorage o inicializar fecha:", e);
   }
@@ -212,24 +174,14 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error("Error al inicializar oyentes de Detalle de Portafolio:", e);
   }
   
-  // Si el usuario ya estaba autenticado, saltar la pantalla de login salvo que esté baneado
+  // Si el usuario ya estaba autenticado, saltar la pantalla de login
   try {
     if (state.isAuthenticated && state.currentUser) {
-      if (checkCurrentBannedStatus()) {
-        const authScreen = document.getElementById('auth-screen');
-        if (authScreen) authScreen.classList.remove('hidden');
-      } else {
-        const authScreen = document.getElementById('auth-screen');
-        if (authScreen) authScreen.classList.add('hidden');
-        
-        if (state.currentUser.role === 'provider') {
-          switchView('professional');
-        } else if (state.currentUser.role === 'admin') {
-          switchView('admin');
-        } else {
-          switchView('client');
-        }
+      const authScreen = document.getElementById('auth-screen');
+      if (authScreen) {
+        authScreen.classList.add('hidden');
       }
+      switchView(state.currentUser.role === 'provider' ? 'professional' : 'client');
     }
   } catch (e) {
     console.error("Error al restaurar sesión activa:", e);
@@ -255,55 +207,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-function ensureProExists(user) {
-  if (!user) return null;
-  let pro = state.professionals.find(p => p.email && p.email.toLowerCase() === user.email.toLowerCase());
-  if (!pro && (user.role === 'provider' || user.role === 'client')) {
-    pro = {
-      id: Date.now(),
-      name: user.name || "Socio Prestador",
-      category: "Abogados",
-      specialty: "Servicios Generales",
-      bio: "Socio profesional registrado en Arkantos.",
-      rating: 5.0,
-      reviewsCount: 0,
-      positiveReviewsPercent: 100,
-      acceptanceStars: 5.0,
-      acceptancePercent: 100,
-      location: { lat: -27.3670, lng: -55.8960, neighborhood: "Posadas, Misiones" },
-      price: 15000,
-      atHome: true,
-      hasLocal: false,
-      address: "",
-      verified: false,
-      verificationStatus: 'unverified',
-      active: false,
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120&h=120",
-      phone: user.phone || "+54 376 400-0000",
-      email: user.email,
-      portfolio: [],
-      agenda: {
-        Lunes: ["08:00", "09:00", "10:00", "11:00", "15:00", "17:00"],
-        Martes: ["08:00", "09:00", "10:00", "11:00", "15:00", "17:00"],
-        Miercoles: ["08:00", "09:00", "10:00", "11:00", "15:00", "17:00"],
-        Jueves: ["08:00", "09:00", "10:00", "11:00", "15:00", "17:00"],
-        Viernes: ["08:00", "09:00", "10:00", "11:00"],
-        Sabado: [],
-        Domingo: []
-      }
-    };
-    state.professionals.push(pro);
-    saveToLocalStorage();
-  }
-  return pro;
-}
-
 function getCurrentPro() {
-  if (state.currentUser) {
-    const pro = ensureProExists(state.currentUser);
+  if (state.currentUser && state.currentUser.role === 'provider') {
+    const pro = state.professionals.find(p => p.email.toLowerCase() === state.currentUser.email.toLowerCase());
     if (pro) return pro;
   }
-  return state.professionals[0] || null;
+  return state.professionals.find(p => p.id === 3) || state.professionals[0];
 }
 
 function getStartOfWeek(date) {
@@ -330,6 +239,24 @@ function formatBookingDate(dateStr) {
   }
   return dateStr;
 }
+
+window.finalizeBooking = (bookingId) => {
+  const booking = state.bookings.find(b => String(b.id) === String(bookingId));
+  if (!booking) return;
+
+  booking.status = "Finalizado";
+  saveToLocalStorage();
+
+  showToast(
+    "🎉 Servicio Completado",
+    "¡Buen trabajo! El servicio ha sido marcado como completado y movido al historial.",
+    "success"
+  );
+
+  updateDashboardMetrics();
+  renderProCalendar();
+  renderProfessionals();
+};
 
 function renderProHistory() {
   const listContainer = document.getElementById('pro-history-list');
@@ -410,43 +337,42 @@ function renderProHistory() {
 
 // --- PERSISTENCIA LOCAL EN LOCALSTORAGE ---
 function loadFromLocalStorage() {
-  // Cargar usuarios (Solo Administrador)
-  state.users = [
-    { name: "Administrador", email: "admin@arkantos.com", password: "admin", role: "admin" }
-  ];
+  // Cargar usuarios
   const storedUsers = localStorage.getItem('arkantos_users');
   if (storedUsers) {
-    try {
-      const parsed = JSON.parse(storedUsers);
-      // Mantener otros usuarios si fueron registrados dinámicamente, asegurando que admin permanezca intacto
-      state.users = parsed.filter(u => u && u.email && u.email.toLowerCase() === "admin@arkantos.com");
-      if (state.users.length === 0) {
-        state.users = [{ name: "Administrador", email: "admin@arkantos.com", password: "admin", role: "admin" }];
-      }
-    } catch (e) {}
+    state.users = JSON.parse(storedUsers);
+  } else {
+    state.users = [...defaultUsers];
+    localStorage.setItem('arkantos_users', JSON.stringify(state.users));
   }
-  localStorage.setItem('arkantos_users', JSON.stringify(state.users));
 
   // Cargar profesionales
   const storedPros = localStorage.getItem('arkantos_professionals');
   if (storedPros) {
-    try {
-      state.professionals = JSON.parse(storedPros);
-    } catch (e) { state.professionals = []; }
+    state.professionals = JSON.parse(storedPros);
   } else {
-    state.professionals = [];
+    state.professionals = [...initialProfessionals];
+    localStorage.setItem('arkantos_professionals', JSON.stringify(state.professionals));
   }
-  localStorage.setItem('arkantos_professionals', JSON.stringify(state.professionals));
 
   // Cargar reservas (bookings)
   const storedBookings = localStorage.getItem('arkantos_bookings');
   if (storedBookings) {
-    try {
-      state.bookings = JSON.parse(storedBookings);
-    } catch (e) { state.bookings = []; }
+    state.bookings = JSON.parse(storedBookings);
   } else {
-    state.bookings = [];
-    localStorage.setItem('arkantos_bookings', JSON.stringify([]));
+    state.bookings = [
+      {
+        id: Date.now() - 100000,
+        proId: 1,
+        clientEmail: "test@client.com",
+        day: "Lunes",
+        time: "09:00",
+        status: "Aceptado",
+        price: 15000,
+        neighborhood: "Microcentro"
+      }
+    ];
+    localStorage.setItem('arkantos_bookings', JSON.stringify(state.bookings));
   }
 
   // Cargar chats unificados (Matias y Laura mapeados a sus correos exactos)
@@ -480,28 +406,7 @@ function loadFromLocalStorage() {
   if (storedAuth === 'true') {
     state.isAuthenticated = true;
     state.currentUser = JSON.parse(localStorage.getItem('arkantos_current_user'));
-    if (state.currentUser && state.currentUser.email === "admin@arkantos.com") {
-      state.currentUser.role = 'admin';
-      localStorage.setItem('arkantos_current_user', JSON.stringify(state.currentUser));
-    }
   }
-
-  // Migración: si hay reservas finalizadas/calificadas sin método de pago, asignarles 'cash' y calcular la deuda
-  state.bookings.forEach(b => {
-    if ((b.status === "Finalizado" || b.status === "Calificado") && !b.paymentMethod) {
-      b.paymentMethod = 'cash';
-    }
-  });
-
-  // Re-sincronizar deudas acumuladas de profesionales basadas en reservas en efectivo
-  state.professionals.forEach(p => {
-    const cashBookings = state.bookings.filter(b => b.proId === p.id && (b.status === "Finalizado" || b.status === "Calificado") && b.paymentMethod === 'cash');
-    const totalCashCommission = cashBookings.reduce((sum, b) => sum + Math.round((b.price || b.total || 0) * 0.15), 0);
-    
-    if (typeof p.cashDebt === 'undefined' || (p.cashDebt === 0 && totalCashCommission > 0)) {
-      p.cashDebt = totalCashCommission;
-    }
-  });
 }
 
 function saveToLocalStorage() {
@@ -576,9 +481,6 @@ function initPhoneAndRecoveryLogic() {
     const secureCode = Math.floor(100000 + Math.random() * 900000).toString();
     state.generatedSmsCode = secureCode;
     state.pendingPhoneToVerify = number;
-
-    const simSmsCodeEl = document.getElementById('simulated-sms-code');
-    if (simSmsCodeEl) simSmsCodeEl.innerText = secureCode;
 
     showToast(
       "💬 Código SMS Enviado",
@@ -823,32 +725,23 @@ function initAuthLogic() {
     const email = document.getElementById('login-email').value.trim();
     const pass = document.getElementById('login-password').value;
 
-    if (!email) {
-      showToast("⚠️ Campo Requerido", "Por favor ingresa tu correo electrónico para acceder.", "warning");
-      return;
-    }
+    const matchedUser = state.users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === pass);
 
-    const existingUser = state.users.find(u => u && u.email && u.email.toLowerCase() === email.toLowerCase());
-
-    if (existingUser) {
-      if (existingUser.password === pass) {
-        if (existingUser.banned) {
-          state.currentUser = existingUser;
-          showToast("⛔ Cuenta Suspendida", `La cuenta de ${existingUser.name} ha sido inhabilitada.`, "error");
-          checkCurrentBannedStatus();
-          return;
-        }
-        triggerAuthTransition(existingUser, 1500);
-      } else {
-        showToast("⚠️ Contraseña Incorrecta", `La clave de acceso para ${existingUser.name} no coincide.`, "warning");
-      }
+    if (matchedUser) {
+      triggerAuthTransition(matchedUser, 1500);
     } else {
-      showToast("⚠️ Cuenta No Registrada", `El usuario "${email}" no existe aún. Te pasamos al formulario de registro.`, "info");
-      const regEmailInput = document.getElementById('register-email');
-      if (regEmailInput) regEmailInput.value = email;
-      const regPassInput = document.getElementById('register-password');
-      if (regPassInput) regPassInput.value = pass;
-      tabRegister.click();
+      const isProEmail = email.toLowerCase().includes('abogado') || email.toLowerCase().includes('socio') || email.toLowerCase().includes('hugo');
+      const newUser = {
+        name: isProEmail ? "Dr. Hugo Benítez" : email.split('@')[0],
+        email: email,
+        password: pass,
+        phone: "+54 376 400-0000",
+        role: isProEmail ? 'provider' : 'client'
+      };
+      
+      state.users.push(newUser);
+      saveToLocalStorage();
+      triggerAuthTransition(newUser, 1500);
     }
   });
 
@@ -879,10 +772,6 @@ function initAuthLogic() {
       verificationEmailLabel.innerText = email;
       verificationCodeInput.value = '';
       verificationError.classList.add('hidden');
-      
-      const simEmailCodeEl = document.getElementById('simulated-email-code');
-      if (simEmailCodeEl) simEmailCodeEl.innerText = secureCode;
-
       emailVerificationModal.classList.remove('hidden');
       emailVerificationModal.classList.add('flex');
 
@@ -915,10 +804,6 @@ function initAuthLogic() {
     if (state.pendingUserToVerify) {
       const newCode = Math.floor(100000 + Math.random() * 900000).toString();
       state.generatedVerificationCode = newCode;
-      
-      const simEmailCodeEl = document.getElementById('simulated-email-code');
-      if (simEmailCodeEl) simEmailCodeEl.innerText = newCode;
-
       showToast(
         "🔑 Nuevo Código de Seguridad",
         `Tu nuevo código de activación es: ${newCode}`,
@@ -985,322 +870,91 @@ function initAuthLogic() {
 }
 
 function triggerAuthTransition(user, delayMs) {
-  if (!user) return;
   const loader = document.getElementById('auth-loader-overlay');
   const title = document.getElementById('auth-loader-title');
   const subtitle = document.getElementById('auth-loader-subtitle');
 
-  if (title && subtitle) {
-    if (user.role === 'provider') {
-      title.innerText = "Cargando Portal Socio...";
-      subtitle.innerText = "Configurando panel de servicios";
-    } else {
-      title.innerText = "Preparando tu espacio...";
-      subtitle.innerText = "Buscando profesionales en la zona";
-    }
+  if (user.role === 'provider') {
+    title.innerText = "Cargando Portal Socio...";
+    subtitle.innerText = "Configurando panel de servicios";
+  } else {
+    title.innerText = "Preparando tu espacio...";
+    subtitle.innerText = "Buscando profesionales en la zona";
   }
 
-  if (loader) loader.classList.remove('hidden');
+  loader.classList.remove('hidden');
 
   setTimeout(() => {
-    try {
-      state.currentUser = user;
-      state.isAuthenticated = true;
+    state.currentUser = user;
+    state.isAuthenticated = true;
 
-      const userEmail = (user.email || '').toLowerCase().trim();
-
-      if (user.role === 'provider') {
-        const exists = state.professionals.some(p => p && p.email && p.email.toLowerCase().trim() === userEmail);
-        if (!exists) {
-          const maxId = state.professionals.reduce((max, p) => (p && p.id > max) ? p.id : max, 0);
-          const newPro = {
-            id: maxId + 1,
-            name: user.name || "Socio Arkantos",
-            email: user.email,
-            category: "Abogados",
-            specialty: "Asesoría Legal y Consultas",
-            bio: "Sin biografía redactada aún. Puedes agregarla desde tu sección de Perfil.",
-            rating: 5.0,
-            reviewsCount: 0,
-            positiveReviewsPercent: 100,
-            acceptanceStars: 5.0,
-            acceptancePercent: 100,
-            location: { 
-              lat: -27.36708 + (Math.random() - 0.5) * 0.02, 
-              lng: -55.89608 + (Math.random() - 0.5) * 0.02, 
-              neighborhood: "Villa Sarita" 
-            },
-            price: 20000,
-            atHome: true,
-            verified: false,
-            verificationStatus: 'unverified',
-            active: false,
-            avatar: user.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=120&h=120",
-            phone: user.phone || "+54 376 400-0000",
-            agenda: {
-              Lunes: ["09:00", "11:00", "15:00", "17:00"],
-              Martes: ["09:00", "10:00", "15:00", "16:00"],
-              Miercoles: ["11:00", "15:00", "17:00"],
-              Jueves: ["09:00", "10:00", "17:00"],
-              Viernes: ["09:00", "11:00", "15:00", "16:00", "17:00"],
-              Sabado: [],
-              Domingo: []
-            }
-          };
-          state.professionals.push(newPro);
-        } else {
-          const pro = state.professionals.find(p => p && p.email && p.email.toLowerCase().trim() === userEmail);
-          if (pro) pro.active = false;
-        }
+    if (user.role === 'provider') {
+      const exists = state.professionals.some(p => p.email === user.email);
+      if (!exists) {
+        // Encontrar un ID único libre
+        const maxId = state.professionals.reduce((max, p) => p.id > max ? p.id : max, 0);
+        const newPro = {
+          id: maxId + 1,
+          name: user.name,
+          email: user.email,
+          category: "Abogados", // Categoría por defecto
+          specialty: "Asesoría Legal y Consultas",
+          bio: "Sin biografía redactada aún. Puedes agregarla desde tu sección de Perfil.",
+          rating: 5.0, // 5 estrellas por defecto
+          reviewsCount: 0,
+          positiveReviewsPercent: 100,
+          acceptanceStars: 5.0,
+          acceptancePercent: 100,
+          location: { 
+            lat: -27.36708 + (Math.random() - 0.5) * 0.02, 
+            lng: -55.89608 + (Math.random() - 0.5) * 0.02, 
+            neighborhood: "Villa Sarita" 
+          },
+          price: 20000,
+          atHome: true,
+          verified: false,
+          active: false,
+          avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=120&h=120",
+          phone: user.phone || "+54 376 400-0000",
+          agenda: {
+            Lunes: ["09:00", "11:00", "15:00", "17:00"],
+            Martes: ["09:00", "10:00", "15:00", "16:00"],
+            Miercoles: ["11:00", "15:00", "17:00"],
+            Jueves: ["09:00", "10:00", "17:00"],
+            Viernes: ["09:00", "11:00", "15:00", "16:00", "17:00"],
+            Sabado: [],
+            Domingo: []
+          }
+        };
+        state.professionals.push(newPro);
       }
-
-      saveToLocalStorage();
-    } catch (err) {
-      console.error("Error durante la transición de autenticación:", err);
-    } finally {
-      if (loader) loader.classList.add('hidden');
     }
+
+    saveToLocalStorage(); // Guardar sesión activa y nuevo profesional si aplica
+
+    loader.classList.add('hidden');
 
     showToast(
       "¡Acceso Concedido!", 
-      `Bienvenido a Arkantos, ${user.name || 'Usuario'}.`, 
+      `Bienvenido a Arkantos, ${user.name}.`, 
       "success"
     );
 
     const authScreen = document.getElementById('auth-screen');
-    if (authScreen) authScreen.classList.add('fade-out-custom');
+    authScreen.classList.add('fade-out-custom');
 
     setTimeout(() => {
-      if (authScreen) {
-        authScreen.classList.add('hidden');
-        authScreen.classList.remove('fade-out-custom');
-      }
+      authScreen.classList.add('hidden');
+      authScreen.classList.remove('fade-out-custom');
       
       if (user.role === 'provider') {
         switchView('professional');
-      } else if (user.role === 'admin') {
-        switchView('admin');
       } else {
         switchView('client');
       }
-    }, 400);
+    }, 600);
 
   }, delayMs);
-}
-
-let pendingAppealImage = null;
-
-function checkCurrentBannedStatus() {
-  const user = state.currentUser;
-  const modal = document.getElementById('user-banned-appeal-modal');
-  const reasonLbl = document.getElementById('user-banned-reason-lbl');
-
-  if (!user || user.role === 'admin' || !user.banned) {
-    if (modal) {
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-    }
-    return false;
-  }
-
-  // Si el usuario actual está baneado, mostrar el modal de baneo/apelación
-  if (reasonLbl) {
-    reasonLbl.innerText = user.banReason || "Incumplimiento de las normas de servicio o conducta de la aplicación.";
-  }
-
-  const stepNotice = document.getElementById('banned-step-notice');
-  const stepAppeal = document.getElementById('banned-step-appeal');
-  const stepSubmitted = document.getElementById('banned-step-submitted');
-
-  if (user.appealStatus === 'pending') {
-    if (stepNotice) stepNotice.classList.add('hidden');
-    if (stepAppeal) stepAppeal.classList.add('hidden');
-    if (stepSubmitted) stepSubmitted.classList.remove('hidden');
-  } else {
-    if (stepNotice) stepNotice.classList.remove('hidden');
-    if (stepAppeal) stepAppeal.classList.add('hidden');
-    if (stepSubmitted) stepSubmitted.classList.add('hidden');
-  }
-
-  if (modal) {
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    lucide.createIcons();
-  }
-  return true;
-}
-
-window.acceptBannedNotice = () => {
-  const modal = document.getElementById('user-banned-appeal-modal');
-  if (modal) {
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-  }
-  logoutUser();
-};
-
-window.openAppealForm = () => {
-  const stepNotice = document.getElementById('banned-step-notice');
-  const stepAppeal = document.getElementById('banned-step-appeal');
-  if (stepNotice) stepNotice.classList.add('hidden');
-  if (stepAppeal) stepAppeal.classList.remove('hidden');
-  try { lucide.createIcons(); } catch (e) {}
-};
-
-window.backToBanNotice = () => {
-  const stepNotice = document.getElementById('banned-step-notice');
-  const stepAppeal = document.getElementById('banned-step-appeal');
-  if (stepAppeal) stepAppeal.classList.add('hidden');
-  if (stepNotice) stepNotice.classList.remove('hidden');
-};
-
-window.submitUserAppeal = () => {
-  const appealTextInput = document.getElementById('appeal-text-input');
-  const text = appealTextInput ? appealTextInput.value.trim() : "";
-  if (!text) {
-    showToast("⚠️ Campo Requerido", "Por favor redacta tus descargos en el cuadro de texto.", "warning");
-    return;
-  }
-
-  const user = state.currentUser;
-  if (!user) {
-    showToast("⚠️ Error de Sesión", "No se encontró el registro de usuario.", "error");
-    return;
-  }
-
-  user.appealStatus = 'pending';
-  user.appealText = text;
-  user.appealImage = pendingAppealImage;
-  user.appealTimestamp = Date.now();
-
-  const matchedUser = state.users.find(u => u && u.email && u.email.toLowerCase() === user.email.toLowerCase());
-  if (matchedUser) {
-    matchedUser.appealStatus = 'pending';
-    matchedUser.appealText = text;
-    matchedUser.appealImage = pendingAppealImage;
-    matchedUser.appealTimestamp = Date.now();
-  }
-
-  saveToLocalStorage();
-
-  showToast("📩 Apelación Enviada", "Tus descargos fueron enviados al administrador.", "success");
-
-  const stepAppeal = document.getElementById('banned-step-appeal');
-  const stepSubmitted = document.getElementById('banned-step-submitted');
-
-  if (stepAppeal) stepAppeal.classList.add('hidden');
-  if (stepSubmitted) stepSubmitted.classList.remove('hidden');
-  try { lucide.createIcons(); } catch (e) {}
-};
-
-function initUserAppealHandlers() {
-  const btnAccept = document.getElementById('btn-banned-accept');
-  const btnOpenAppeal = document.getElementById('btn-banned-open-appeal');
-  const btnBackNotice = document.getElementById('btn-back-to-ban-notice');
-  const btnCloseSubmitted = document.getElementById('btn-close-appeal-submitted');
-
-  const btnTriggerFile = document.getElementById('btn-trigger-appeal-file');
-  const fileInput = document.getElementById('appeal-file-input');
-  const imgPreviewContainer = document.getElementById('appeal-img-preview-container');
-  const imgPreview = document.getElementById('appeal-img-preview');
-  const btnRemoveFile = document.getElementById('btn-remove-appeal-file');
-  const fileLabel = document.getElementById('appeal-file-label');
-
-  const btnSubmitAppeal = document.getElementById('btn-submit-appeal');
-
-  if (btnAccept) btnAccept.onclick = window.acceptBannedNotice;
-  if (btnOpenAppeal) btnOpenAppeal.onclick = window.openAppealForm;
-  if (btnBackNotice) btnBackNotice.onclick = window.backToBanNotice;
-  if (btnCloseSubmitted) btnCloseSubmitted.onclick = window.acceptBannedNotice;
-
-  if (btnTriggerFile && fileInput) {
-    btnTriggerFile.onclick = () => fileInput.click();
-    fileInput.onchange = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        runImageSafetyScan(file.name).then(() => {
-          const reader = new FileReader();
-          reader.onload = (evt) => {
-            pendingAppealImage = evt.target.result;
-            if (imgPreview) imgPreview.src = evt.target.result;
-            if (imgPreviewContainer) imgPreviewContainer.classList.remove('hidden');
-            if (fileLabel) fileLabel.innerText = "Foto de prueba adjuntada";
-          };
-          reader.readAsDataURL(file);
-        }).catch(() => {
-          fileInput.value = '';
-          pendingAppealImage = null;
-        });
-      }
-    };
-  }
-
-  if (btnRemoveFile) {
-    btnRemoveFile.onclick = () => {
-      pendingAppealImage = null;
-      if (fileInput) fileInput.value = '';
-      if (imgPreviewContainer) imgPreviewContainer.classList.add('hidden');
-      if (fileLabel) fileLabel.innerText = "Seleccionar Foto de Prueba";
-    };
-  }
-
-  if (btnSubmitAppeal) {
-    btnSubmitAppeal.onclick = window.submitUserAppeal;
-  }
-}
-document.addEventListener('DOMContentLoaded', initUserAppealHandlers);
-initUserAppealHandlers();
-
-function openAdminBanModal(userToBan, callback) {
-  const banModal = document.getElementById('admin-ban-reason-modal');
-  const banReasonInput = document.getElementById('admin-ban-reason-text');
-  const btnConfirmBan = document.getElementById('btn-confirm-admin-ban');
-  const btnCancelBan = document.getElementById('btn-cancel-admin-ban');
-  const btnCloseBanModal = document.getElementById('btn-close-admin-ban-modal');
-
-  const closeBanModal = () => {
-    if (banModal) {
-      banModal.classList.add('hidden');
-      banModal.classList.remove('flex');
-    }
-  };
-
-  if (btnCloseBanModal) btnCloseBanModal.onclick = closeBanModal;
-  if (btnCancelBan) btnCancelBan.onclick = closeBanModal;
-
-  if (banReasonInput) banReasonInput.value = '';
-
-  document.querySelectorAll('.btn-quick-ban-reason').forEach(btn => {
-    btn.onclick = () => {
-      const reasonText = btn.innerText.replace(/^[^\w\sáéíóúÁÉÍÓÚñÑ]+/, '').trim();
-      if (banReasonInput) banReasonInput.value = reasonText;
-    };
-  });
-
-  if (banModal) {
-    banModal.classList.remove('hidden');
-    banModal.classList.add('flex');
-    lucide.createIcons();
-  }
-
-  if (btnConfirmBan) {
-    btnConfirmBan.onclick = () => {
-      const reason = (banReasonInput && banReasonInput.value.trim())
-        ? banReasonInput.value.trim()
-        : "Incumplimiento de las normas de servicio o conducta de la aplicación.";
-
-      userToBan.banned = true;
-      userToBan.banReason = reason;
-      userToBan.banTimestamp = Date.now();
-      userToBan.appealStatus = null;
-
-      saveToLocalStorage();
-      showToast("⛔ Cuenta Suspendida", `Se aplicó la sanción a ${userToBan.name}: "${reason}".`, "warning");
-
-      closeBanModal();
-      if (callback) callback();
-    };
-  }
 }
 
 // --- GEOLOCALIZACIÓN Y MAPAS ---
@@ -2154,7 +1808,38 @@ function confirmBooking() {
     return;
   }
 
-  window.openPaymentMethodModal();
+  const pro = state.professionals.find(p => p.id === proId);
+  const basePrice = pro.price;
+  const commission = Math.round(basePrice * 0.15);
+  const total = basePrice + commission;
+
+  const newBooking = {
+    id: Date.now(),
+    proId: proId,
+    proName: pro.name,
+    category: pro.category,
+    date: day,
+    time: time,
+    price: basePrice,
+    total: total,
+    status: "Pendiente"
+  };
+
+  state.bookings.push(newBooking);
+  saveToLocalStorage();
+  closeBookingSheet();
+
+  showToast(
+    "¡Turno Agendado con éxito!", 
+    `Tu turno con ${pro.name} el día ${day} a las ${time} hs fue enviado para confirmación.`, 
+    "success"
+  );
+
+  const currentPro = getCurrentPro();
+  if (proId === currentPro.id) {
+    renderPendingBookings();
+    renderProCalendar();
+  }
 }
 
 // --- PORTAL SOCIO (PROFESIONAL) ---
@@ -2210,78 +1895,62 @@ function initProfessionalEventListeners() {
   const btnCloseDniLockModal = document.getElementById('btn-close-dni-lock-modal');
   const btnGoToProfileDni = document.getElementById('btn-go-to-profile-dni');
 
-  if (btnRayoConnect) {
-    btnRayoConnect.addEventListener('click', () => {
-      const pro = getCurrentPro();
+  btnRayoConnect.addEventListener('click', () => {
+    const pro = getCurrentPro();
 
-      if (!pro.verified) {
-        if (dniConnectLockModal) {
-          dniConnectLockModal.classList.remove('hidden');
-          dniConnectLockModal.classList.add('flex');
-        }
-        return;
-      }
+    if (!pro.verified) {
+      dniConnectLockModal.classList.remove('hidden');
+      dniConnectLockModal.classList.add('flex');
+      return;
+    }
 
-      const active = pro.active;
-      const modalTitle = document.getElementById('uber-modal-title');
-      const modalMessage = document.getElementById('uber-modal-message');
+    const active = pro.active;
+    const modalTitle = document.getElementById('uber-modal-title');
+    const modalMessage = document.getElementById('uber-modal-message');
 
-      if (active) {
-        if (modalTitle) modalTitle.innerText = "¿Quieres Desconectarte?";
-        if (modalMessage) modalMessage.innerText = "Dejarás de figurar disponible en el radar de atención rápida para clientes cercanos.";
-        if (btnConfirmUber) btnConfirmUber.innerText = "Sí, Desconectar";
-      } else {
-        if (modalTitle) modalTitle.innerText = "¿Quieres Conectarte?";
-        if (modalMessage) modalMessage.innerText = "Activarás tu estado de atención rápida. Figurarás disponible de inmediato en la lista de los clientes cercanos.";
-        if (btnConfirmUber) btnConfirmUber.innerText = "Sí, Conectar";
-      }
+    if (active) {
+      modalTitle.innerText = "¿Quieres Desconectarte?";
+      modalMessage.innerText = "Dejarás de figurar disponible en el radar de atención rápida para clientes cercanos.";
+      btnConfirmUber.innerText = "Sí, Desconectar";
+    } else {
+      modalTitle.innerText = "¿Quieres Conectarte?";
+      modalMessage.innerText = "Activarás tu estado de atención rápida. Figurarás disponible de inmediato en la lista de los clientes cercanos.";
+      btnConfirmUber.innerText = "Sí, Conectar";
+    }
 
-      if (uberConnectModal) {
-        uberConnectModal.classList.remove('hidden');
-        uberConnectModal.classList.add('flex');
-      }
+    uberConnectModal.classList.remove('hidden');
+    uberConnectModal.classList.add('flex');
+  });
+
+  btnCloseDniLockModal.addEventListener('click', () => {
+    dniConnectLockModal.classList.add('hidden');
+    dniConnectLockModal.classList.remove('flex');
+  });
+
+  btnGoToProfileDni.addEventListener('click', () => {
+    dniConnectLockModal.classList.add('hidden');
+    dniConnectLockModal.classList.remove('flex');
+    
+    document.querySelectorAll('.pro-nav-tab').forEach(t => {
+      t.classList.remove('text-brand-gold-500', 'active');
+      t.classList.add('text-slate-500');
     });
-  }
-
-  if (btnCloseDniLockModal) {
-    btnCloseDniLockModal.addEventListener('click', () => {
-      if (dniConnectLockModal) {
-        dniConnectLockModal.classList.add('hidden');
-        dniConnectLockModal.classList.remove('flex');
-      }
-    });
-  }
-
-  if (btnGoToProfileDni) {
-    btnGoToProfileDni.addEventListener('click', () => {
-      if (dniConnectLockModal) {
-        dniConnectLockModal.classList.add('hidden');
-        dniConnectLockModal.classList.remove('flex');
-      }
-      
-      document.querySelectorAll('.pro-nav-tab').forEach(t => {
-        t.classList.remove('text-brand-gold-500', 'active');
-        t.classList.add('text-slate-500');
-      });
-      const profileTab = document.querySelector('.pro-nav-tab[data-view="profile"]');
-      if (profileTab) {
-        profileTab.classList.remove('text-slate-500');
-        profileTab.classList.add('text-brand-gold-500', 'active');
-      }
-      
-      switchProSubView('profile');
-    });
-  }
+    const profileTab = document.querySelector('.pro-nav-tab[data-view="profile"]');
+    profileTab.classList.remove('text-slate-500');
+    profileTab.classList.add('text-brand-gold-500', 'active');
+    
+    switchProSubView('profile');
+  });
 
   const closeUberModal = () => {
     uberConnectModal.classList.add('hidden');
     uberConnectModal.classList.remove('flex');
   };
 
-  if (btnCloseUberModal) btnCloseUberModal.addEventListener('click', closeUberModal);
-  if (btnCancelUber) btnCancelUber.addEventListener('click', closeUberModal);
+  btnCloseUberModal.addEventListener('click', closeUberModal);
+  btnCancelUber.addEventListener('click', closeUberModal);
 
-  if (btnConfirmUber) btnConfirmUber.addEventListener('click', () => {
+  btnConfirmUber.addEventListener('click', () => {
     const pro = getCurrentPro();
     const newActiveState = !pro.active;
     
@@ -2361,13 +2030,11 @@ function initProfessionalEventListeners() {
   const proFileAvatarInput = document.getElementById('pro-file-avatar-input');
   const proContactAvatarPreview = document.getElementById('pro-contact-avatar-preview');
 
-  if (btnTriggerAvatarFile && proFileAvatarInput) {
-    btnTriggerAvatarFile.addEventListener('click', () => {
-      proFileAvatarInput.click();
-    });
-  }
+  btnTriggerAvatarFile.addEventListener('click', () => {
+    proFileAvatarInput.click();
+  });
 
-  if (proFileAvatarInput) proFileAvatarInput.addEventListener('change', (e) => {
+  proFileAvatarInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
       runImageSafetyScan(file.name).then(() => {
@@ -2476,22 +2143,6 @@ function initProfessionalEventListeners() {
       }
     });
   }
-  if (dniFrontPreview) {
-    dniFrontPreview.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (dniFrontPreview.src && !dniFrontPreview.classList.contains('hidden')) {
-        window.openImageLightbox(dniFrontPreview.src, "DNI Frente (Previsualización)");
-      }
-    });
-  }
-  if (dniBackPreview) {
-    dniBackPreview.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (dniBackPreview.src && !dniBackPreview.classList.contains('hidden')) {
-        window.openImageLightbox(dniBackPreview.src, "DNI Dorso (Previsualización)");
-      }
-    });
-  }
 
   // --- LÓGICA DE DNI CON VALIDACIÓN DE NOMBRE CRUZADO Y FOTOS ---
   const btnVerifyDni = document.getElementById('btn-verify-dni');
@@ -2499,111 +2150,68 @@ function initProfessionalEventListeners() {
   const dniInputName = document.getElementById('dni-input-name');
   const dniErrorMessage = document.getElementById('dni-error-message');
 
-  if (btnVerifyDni) btnVerifyDni.addEventListener('click', () => {
-    const pro = getCurrentPro();
-    if (!pro) {
-      showToast("⚠️ Error de Sesión", "No se pudo identificar la cuenta del prestador.", "error");
-      return;
-    }
-
-    const dni = dniInputNumber ? dniInputNumber.value.trim() : "";
-    const typedName = dniInputName ? dniInputName.value.trim() : "";
-    const profileName = (pro.name || (state.currentUser ? state.currentUser.name : "")).trim();
-
-    // Recuperación defensiva robusta de fotos desde el perfil del usuario o desde las etiquetas de previsualización
-    const dniFrontPreview = document.getElementById('dni-front-preview');
-    const dniBackPreview = document.getElementById('dni-back-preview');
-
-    if (!state.dniFrontImage) {
-      if (pro && pro.dniFrontImage) {
-        state.dniFrontImage = pro.dniFrontImage;
-      } else if (dniFrontPreview && dniFrontPreview.src && dniFrontPreview.src.length > 30 && !dniFrontPreview.src.endsWith('index.html')) {
-        state.dniFrontImage = dniFrontPreview.src;
-      }
-    }
-
-    if (!state.dniBackImage) {
-      if (pro && pro.dniBackImage) {
-        state.dniBackImage = pro.dniBackImage;
-      } else if (dniBackPreview && dniBackPreview.src && dniBackPreview.src.length > 30 && !dniBackPreview.src.endsWith('index.html')) {
-        state.dniBackImage = dniBackPreview.src;
-      }
-    }
+  btnVerifyDni.addEventListener('click', () => {
+    const dni = dniInputNumber.value.trim();
+    const typedName = dniInputName.value.trim();
+    const profileName = document.getElementById('pro-edit-name').value.trim();
 
     // Validar foto frente
     if (!state.dniFrontImage) {
-      if (dniErrorMessage) {
-        dniErrorMessage.innerText = "⚠️ Debes cargar la foto de adelante de tu DNI.";
-        dniErrorMessage.classList.remove('hidden');
-      }
+      dniErrorMessage.innerText = "⚠️ Debes cargar la foto de adelante de tu DNI.";
+      dniErrorMessage.classList.remove('hidden');
       showToast("⚠️ Foto Faltante", "Carga la foto frontal del DNI.", "warning");
       return;
     }
 
     // Validar foto dorso
     if (!state.dniBackImage) {
-      if (dniErrorMessage) {
-        dniErrorMessage.innerText = "⚠️ Debes cargar la foto de atrás de tu DNI.";
-        dniErrorMessage.classList.remove('hidden');
-      }
+      dniErrorMessage.innerText = "⚠️ Debes cargar la foto de atrás de tu DNI.";
+      dniErrorMessage.classList.remove('hidden');
       showToast("⚠️ Foto Faltante", "Carga la foto del dorso del DNI.", "warning");
       return;
     }
 
     const isNumeric = /^\d+$/.test(dni);
-    const hasValidLength = dni.length >= 6 && dni.length <= 10;
+    const hasValidLength = dni.length === 7 || dni.length === 8;
 
     if (!isNumeric || !hasValidLength) {
-      if (dniErrorMessage) {
-        dniErrorMessage.innerText = "⚠️ El DNI debe ser numérico y tener entre 6 y 10 dígitos.";
-        dniErrorMessage.classList.remove('hidden');
-      }
+      dniErrorMessage.innerText = "⚠️ El DNI debe ser numérico y tener 7 u 8 dígitos.";
+      dniErrorMessage.classList.remove('hidden');
       showToast("⚠️ DNI Inválido", "Revisa el número ingresado.", "warning");
       return;
     }
 
     if (!typedName) {
-      if (dniErrorMessage) {
-        dniErrorMessage.innerText = "⚠️ Debes ingresar el nombre y apellido completo de tu DNI.";
-        dniErrorMessage.classList.remove('hidden');
-      }
-      showToast("⚠️ Nombre Requerido", "Ingresa tu nombre completo.", "warning");
+      dniErrorMessage.innerText = "⚠️ Debes ingresar el nombre y apellido completo de tu DNI.";
+      dniErrorMessage.classList.remove('hidden');
       return;
     }
 
-    // Sincronizar el nombre del perfil con el nombre legal ingresado en la verificación de DNI
-    if (typedName.toLowerCase() !== profileName.toLowerCase()) {
-      pro.name = typedName;
-      if (state.currentUser) state.currentUser.name = typedName;
-      const proEditNameInput = document.getElementById('pro-edit-name');
-      if (proEditNameInput) proEditNameInput.value = typedName;
+    const normalizedTypedName = typedName.toLowerCase().replace(/\s+/g, ' ');
+    const normalizedProfileName = profileName.toLowerCase().replace(/\s+/g, ' ');
+
+    if (normalizedTypedName !== normalizedProfileName) {
+      dniErrorMessage.innerText = `⚠️ El nombre del DNI ("${typedName}") no coincide con el registrado en tu perfil ("${profileName}"). Ambos nombres deben ser idénticos.`;
+      dniErrorMessage.classList.remove('hidden');
+      showToast("⚠️ Error de Suplantación", "El nombre de identidad no coincide con el perfil registrado.", "warning");
+      return;
     }
 
-    if (dniErrorMessage) dniErrorMessage.classList.add('hidden');
+    dniErrorMessage.classList.add('hidden');
     btnVerifyDni.disabled = true;
-    btnVerifyDni.innerText = "Enviando...";
+    btnVerifyDni.innerText = "Validando...";
 
     setTimeout(() => {
-      btnVerifyDni.disabled = false;
-      btnVerifyDni.innerText = "Verificar Mi Identidad";
-      
-      pro.verified = false;
-      pro.verificationStatus = 'pending';
-      pro.rejectionReason = null;
-      pro.dniNumber = dni;
-      pro.dniName = typedName;
-      pro.dniFrontImage = state.dniFrontImage;
-      pro.dniBackImage = state.dniBackImage;
-      
+      getCurrentPro().verified = true;
       saveToLocalStorage();
       showToast(
-        "📩 Solicitud Enviada", 
-        "Tus fotos de DNI y datos fueron enviados para aprobación del administrador.", 
+        "🛡️ Identidad Validada", 
+        "DNI verificado con éxito en RENAPER. Ya eres un socio verificado.", 
         "success"
       );
       
       updateProVerificationUI();
-    }, 1000);
+    }, 1800);
   });
 
   // --- MODAL LEY ADVERTENCIA DE DNI ---
@@ -2612,75 +2220,37 @@ function initProfessionalEventListeners() {
   const btnCloseLegalModal = document.getElementById('btn-close-legal-modal');
   const btnUnderstandLegal = document.getElementById('btn-understand-legal');
 
-  if (btnDniLegalInfo && dniLegalModal) {
-    btnDniLegalInfo.addEventListener('click', () => {
-      dniLegalModal.classList.remove('hidden');
-      dniLegalModal.classList.add('flex');
-    });
-  }
+  btnDniLegalInfo.addEventListener('click', () => {
+    dniLegalModal.classList.remove('hidden');
+    dniLegalModal.classList.add('flex');
+  });
 
   const closeLegal = () => {
-    if (dniLegalModal) {
-      dniLegalModal.classList.add('hidden');
-      dniLegalModal.classList.remove('flex');
-    }
+    dniLegalModal.classList.add('hidden');
+    dniLegalModal.classList.remove('flex');
   };
 
-  if (btnCloseLegalModal) btnCloseLegalModal.addEventListener('click', closeLegal);
-  if (btnUnderstandLegal) btnUnderstandLegal.addEventListener('click', closeLegal);
-
-  // --- GUARDADO DE TARIFA SOS ---
-  const btnProSaveSosPrice = document.getElementById('btn-pro-save-sos-price');
-  if (btnProSaveSosPrice) {
-    btnProSaveSosPrice.addEventListener('click', () => {
-      const priceInput = document.getElementById('pro-input-sos-price');
-      if (!priceInput) return;
-      const price = parseInt(priceInput.value);
-      if (isNaN(price) || price < 0) {
-        showToast("⚠️ Tarifa Inválida", "Por favor ingresa un precio de tarifa SOS válido.", "warning");
-        return;
-      }
-      
-      const pro = getCurrentPro();
-      if (pro) {
-        pro.price = price;
-        saveToLocalStorage();
-        showToast("Tarifa Actualizada", "Precio de consulta de guardia SOS guardado con éxito.", "success");
-        
-        // Sincronizar de inmediato la vista del cliente
-        try {
-          renderClientSosList();
-        } catch (e) {
-          console.warn("Vista SOS del cliente no inicializada:", e);
-        }
-      }
-    });
-  }
+  btnCloseLegalModal.addEventListener('click', closeLegal);
+  btnUnderstandLegal.addEventListener('click', closeLegal);
 
   // --- DETALLE DE FACTURACIÓN INTERACTIVO ---
   const btnOpenBillingSheet = document.getElementById('btn-open-billing-sheet');
   const billingDetailSheet = document.getElementById('billing-detail-sheet');
   const btnCloseBillingDetail = document.getElementById('btn-close-billing-detail');
 
-  if (btnOpenBillingSheet && billingDetailSheet) {
-    btnOpenBillingSheet.addEventListener('click', () => {
-      billingDetailSheet.classList.remove('hidden');
-    });
-  }
+  btnOpenBillingSheet.addEventListener('click', () => {
+    billingDetailSheet.classList.remove('hidden');
+  });
 
-  if (btnCloseBillingDetail && billingDetailSheet) {
-    btnCloseBillingDetail.addEventListener('click', () => {
+  btnCloseBillingDetail.addEventListener('click', () => {
+    billingDetailSheet.classList.add('hidden');
+  });
+
+  billingDetailSheet.addEventListener('click', (e) => {
+    if (e.target.id === 'billing-detail-sheet') {
       billingDetailSheet.classList.add('hidden');
-    });
-  }
-
-  if (billingDetailSheet) {
-    billingDetailSheet.addEventListener('click', (e) => {
-      if (e.target.id === 'billing-detail-sheet') {
-        billingDetailSheet.classList.add('hidden');
-      }
-    });
-  }
+    }
+  });
 
   // --- CARGA DE FOTO DE PORTAFOLIO LOCAL ---
   const btnTriggerPortfolioFile = document.getElementById('btn-trigger-portfolio-file');
@@ -2729,35 +2299,33 @@ function initProfessionalEventListeners() {
 
   // --- FORMULARIO DE PORTAFOLIO ---
   const portfolioForm = document.getElementById('pro-portfolio-form');
-  if (portfolioForm) {
-    portfolioForm.addEventListener('submit', (e) => {
-      e.preventDefault();
+  portfolioForm.addEventListener('submit', (e) => {
+    e.preventDefault();
 
-      const title = document.getElementById('port-title').value;
-      const desc = document.getElementById('port-desc').value;
+    const title = document.getElementById('port-title').value;
+    const desc = document.getElementById('port-desc').value;
 
-      const newWork = {
-        id: Date.now(),
-        title,
-        desc,
-        img: pendingPortfolioImage
-      };
+    const newWork = {
+      id: Date.now(),
+      title,
+      desc,
+      img: pendingPortfolioImage
+    };
 
-      const pro = getCurrentPro();
-      if (!pro.portfolio) pro.portfolio = [];
-      pro.portfolio.unshift(newWork);
-      saveToLocalStorage();
-      portfolioForm.reset();
+    const pro = getCurrentPro();
+    if (!pro.portfolio) pro.portfolio = [];
+    pro.portfolio.unshift(newWork);
+    saveToLocalStorage();
+    portfolioForm.reset();
 
-      // Resetear estados de previsualización
-      pendingPortfolioImage = null;
-      if (portImagePreviewContainer) portImagePreviewContainer.classList.add('hidden');
-      if (btnRemovePortfolioFile) btnRemovePortfolioFile.classList.add('hidden');
-      
-      renderPortfolioGallery();
-      showToast("🎉 Trabajo Publicado", "Se ha añadido tu nuevo trabajo a la galería.", "success");
-    });
-  }
+    // Resetear estados de previsualización
+    pendingPortfolioImage = null;
+    if (portImagePreviewContainer) portImagePreviewContainer.classList.add('hidden');
+    if (btnRemovePortfolioFile) btnRemovePortfolioFile.classList.add('hidden');
+    
+    renderPortfolioGallery();
+    showToast("🎉 Trabajo Publicado", "Se ha añadido tu nuevo trabajo a la galería.", "success");
+  });
 
   // --- FORMULARIO DE CONTACTO ---
   const contactForm = document.getElementById('pro-contact-form');
@@ -2770,9 +2338,8 @@ function initProfessionalEventListeners() {
   const proEditNeighborhood = document.getElementById('pro-edit-neighborhood');
   const proEditBio = document.getElementById('pro-edit-bio');
 
-  if (contactForm) {
-    contactForm.addEventListener('submit', (e) => {
-      e.preventDefault();
+  contactForm.addEventListener('submit', (e) => {
+    e.preventDefault();
 
     const proAtHomeEl = document.getElementById('pro-edit-athome');
     const proHasLocalEl = document.getElementById('pro-edit-has-local');
@@ -2884,8 +2451,7 @@ function initProfessionalEventListeners() {
         showToast("¡Datos Actualizados!", "Tus datos de contacto han sido guardados con éxito.", "success");
       }, 700);
     }
-    });
-  }
+  });
 
   // --- INTERRUPTOR DE ACTIVIDAD ---
   const activityToggle = document.getElementById('pro-activity-toggle');
@@ -2961,48 +2527,82 @@ function initProfessionalEventListeners() {
     });
   }
 
-  const btnBackToChatList = document.getElementById('btn-back-to-chat-list');
-  if (btnBackToChatList) {
-    btnBackToChatList.addEventListener('click', () => {
-      const activeChatBox = document.getElementById('active-chat-box');
-      if (activeChatBox) activeChatBox.classList.add('hidden');
-      const chatListCont = document.getElementById('pro-chat-list-container');
-      if (chatListCont) chatListCont.classList.remove('hidden');
-      state.activeChatId = null;
-      renderChatsList();
+  document.getElementById('btn-back-to-chat-list').addEventListener('click', () => {
+    document.getElementById('active-chat-box').classList.add('hidden');
+    document.getElementById('pro-chat-list-container').classList.remove('hidden');
+    state.activeChatId = null;
+    renderChatsList();
+  });
+
+  document.getElementById('btn-send-chat-msg').addEventListener('click', sendChatMessage);
+  document.getElementById('chat-input-text').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendChatMessage();
+  });
+
+  // Listener para el botón de Soporte Pro
+  document.getElementById('btn-pro-support').addEventListener('click', () => {
+    openSupportChat('pro');
+  });
+
+  // Inicializar selects del calendario por semanas/meses/años
+  const monthSelect = document.getElementById('pro-calendar-month-select');
+  const yearSelect = document.getElementById('pro-calendar-year-select');
+
+  if (monthSelect && yearSelect) {
+    const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    monthSelect.innerHTML = '';
+    months.forEach((m, idx) => {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.innerText = m;
+      monthSelect.appendChild(opt);
+    });
+
+    const years = [2026, 2027, 2028];
+    yearSelect.innerHTML = '';
+    years.forEach(y => {
+      const opt = document.createElement('option');
+      opt.value = y;
+      opt.innerText = y;
+      yearSelect.appendChild(opt);
+    });
+
+    monthSelect.addEventListener('change', () => {
+      const selectedMonth = parseInt(monthSelect.value);
+      const selectedYear = parseInt(yearSelect.value);
+      const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1);
+      currentCalendarStartOfWeek = getStartOfWeek(firstDayOfMonth);
+      renderProCalendar();
+    });
+
+    yearSelect.addEventListener('change', () => {
+      const selectedMonth = parseInt(monthSelect.value);
+      const selectedYear = parseInt(yearSelect.value);
+      const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1);
+      currentCalendarStartOfWeek = getStartOfWeek(firstDayOfMonth);
+      renderProCalendar();
     });
   }
 
-  const btnSendChatMsg = document.getElementById('btn-send-chat-msg');
-  if (btnSendChatMsg) {
-    btnSendChatMsg.addEventListener('click', sendChatMessage);
-  }
+  // Botones de navegación de semanas
+  const btnPrevWeek = document.getElementById('btn-pro-prev-week');
+  const btnNextWeek = document.getElementById('btn-pro-next-week');
 
-  const chatInputText = document.getElementById('chat-input-text');
-  if (chatInputText) {
-    chatInputText.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendChatMessage();
+  if (btnPrevWeek) {
+    btnPrevWeek.addEventListener('click', () => {
+      const start = new Date(currentCalendarStartOfWeek);
+      start.setDate(start.getDate() - 7);
+      currentCalendarStartOfWeek = start;
+      renderProCalendar();
     });
   }
 
-  const btnProSupport = document.getElementById('btn-pro-support');
-  if (btnProSupport) {
-    btnProSupport.addEventListener('click', () => {
-      openSupportChat('pro');
-    });
-  }
-
-  // Oyentes de respaldo para navegación del calendario mensual (en caso de caché del HTML)
-  const btnPrev = document.getElementById('btn-pro-prev-month');
-  if (btnPrev) {
-    btnPrev.addEventListener('click', () => {
-      window.changeProCalendarMonth(-1);
-    });
-  }
-  const btnNext = document.getElementById('btn-pro-next-month');
-  if (btnNext) {
-    btnNext.addEventListener('click', () => {
-      window.changeProCalendarMonth(1);
+  if (btnNextWeek) {
+    btnNextWeek.addEventListener('click', () => {
+      const start = new Date(currentCalendarStartOfWeek);
+      start.setDate(start.getDate() + 7);
+      currentCalendarStartOfWeek = start;
+      renderProCalendar();
     });
   }
 
@@ -3066,20 +2666,6 @@ function switchProSubView(view) {
     document.getElementById('pro-edit-name').value = pro.name;
     document.getElementById('pro-edit-phone').value = pro.phone;
     document.getElementById('pro-edit-email').value = pro.email || "";
-
-    const dniInputName = document.getElementById('dni-input-name');
-    if (dniInputName) {
-      dniInputName.value = pro.dniName || pro.name;
-    }
-    const dniInputNumber = document.getElementById('dni-input-number');
-    if (dniInputNumber && pro.dniNumber) {
-      dniInputNumber.value = pro.dniNumber;
-    }
-    
-    const priceInput = document.getElementById('pro-input-sos-price');
-    if (priceInput) {
-      priceInput.value = pro.price || 0;
-    }
     const categorySelect = document.getElementById('pro-edit-category');
     if (categorySelect) {
       categorySelect.value = pro.category || "Abogados";
@@ -3154,81 +2740,25 @@ function updateProVerificationUI() {
   const badge = document.getElementById('dni-status-badge');
   const dashBadge = document.getElementById('pro-dash-verified-badge');
   const verifiedBox = document.getElementById('dni-verified-box');
-  const pendingBox = document.getElementById('dni-pending-box');
   const unverifiedBox = document.getElementById('dni-unverified-box');
   const lockOverlay = document.getElementById('portfolio-lock-overlay');
-
-  const rejectionNoticeContainer = document.getElementById('dni-rejection-notice-container');
-  const rejectionReasonLbl = document.getElementById('dni-rejection-reason-lbl');
-
-  if (!badge) return;
-
-  // Restaurar previsualizaciones de fotos cargadas previamente
-  const dniFrontPreview = document.getElementById('dni-front-preview');
-  const dniFrontPlaceholder = document.getElementById('dni-front-placeholder');
-  const dniBackPreview = document.getElementById('dni-back-preview');
-  const dniBackPlaceholder = document.getElementById('dni-back-placeholder');
-
-  if (pro.dniFrontImage && dniFrontPreview && dniFrontPlaceholder) {
-    state.dniFrontImage = state.dniFrontImage || pro.dniFrontImage;
-    dniFrontPreview.src = pro.dniFrontImage;
-    dniFrontPreview.classList.remove('hidden');
-    dniFrontPlaceholder.classList.add('hidden');
-  }
-
-  if (pro.dniBackImage && dniBackPreview && dniBackPlaceholder) {
-    state.dniBackImage = state.dniBackImage || pro.dniBackImage;
-    dniBackPreview.src = pro.dniBackImage;
-    dniBackPreview.classList.remove('hidden');
-    dniBackPlaceholder.classList.add('hidden');
-  }
 
   if (pro.verified) {
     badge.className = "text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-brand-gold-500/20 text-brand-gold-500 border border-brand-gold-500/40";
     badge.innerText = "Verificado";
 
-    if (dashBadge) dashBadge.classList.remove('hidden');
-    if (verifiedBox) verifiedBox.classList.remove('hidden');
-    if (pendingBox) pendingBox.classList.add('hidden');
-    if (unverifiedBox) unverifiedBox.classList.add('hidden');
-    if (lockOverlay) lockOverlay.classList.add('hidden');
-    if (rejectionNoticeContainer) rejectionNoticeContainer.classList.add('hidden');
-  } else if (pro.verificationStatus === 'pending') {
-    badge.className = "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-550 border border-amber-500/20";
-    badge.innerText = "Pendiente";
-
-    if (dashBadge) dashBadge.classList.add('hidden');
-    if (verifiedBox) verifiedBox.classList.add('hidden');
-    if (pendingBox) pendingBox.classList.remove('hidden');
-    if (unverifiedBox) unverifiedBox.classList.add('hidden');
-    if (lockOverlay) lockOverlay.classList.remove('hidden');
-    if (rejectionNoticeContainer) rejectionNoticeContainer.classList.add('hidden');
-  } else if (pro.verificationStatus === 'rejected') {
-    badge.className = "text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-red-955 text-red-400 border border-red-900";
-    badge.innerText = "Rechazado";
-
-    if (dashBadge) dashBadge.classList.add('hidden');
-    if (verifiedBox) verifiedBox.classList.add('hidden');
-    if (pendingBox) pendingBox.classList.add('hidden');
-    if (unverifiedBox) unverifiedBox.classList.remove('hidden');
-    if (lockOverlay) lockOverlay.classList.remove('hidden');
-
-    if (rejectionNoticeContainer) {
-      rejectionNoticeContainer.classList.remove('hidden');
-      if (rejectionReasonLbl) {
-        rejectionReasonLbl.innerText = pro.rejectionReason || "Documentación no legible o incompleta.";
-      }
-    }
+    dashBadge.classList.remove('hidden');
+    verifiedBox.classList.remove('hidden');
+    unverifiedBox.classList.add('hidden');
+    lockOverlay.classList.add('hidden');
   } else {
     badge.className = "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-red-955/40 text-red-400 border border-red-900/30";
     badge.innerText = "Sin Verificar";
 
-    if (dashBadge) dashBadge.classList.add('hidden');
-    if (verifiedBox) verifiedBox.classList.add('hidden');
-    if (pendingBox) pendingBox.classList.add('hidden');
-    if (unverifiedBox) unverifiedBox.classList.remove('hidden');
-    if (lockOverlay) lockOverlay.classList.remove('hidden');
-    if (rejectionNoticeContainer) rejectionNoticeContainer.classList.add('hidden');
+    dashBadge.classList.add('hidden');
+    verifiedBox.classList.add('hidden');
+    unverifiedBox.classList.remove('hidden');
+    lockOverlay.classList.remove('hidden');
   }
 }
 
@@ -3487,17 +3017,38 @@ function sendChatMessage() {
 }
 
 // --- REDISEÑO DE CALENDARIO DE RESERVAS ---
-// --- REDISEÑO DE CALENDARIO DE RESERVAS (MENSUAL SIMPLIFICADO) ---
 function renderProCalendar() {
-  const gridContainer = document.getElementById('pro-calendar-days-grid');
-  const monthLabel = document.getElementById('pro-calendar-month-label');
-  const selectedDayList = document.getElementById('pro-calendar-selected-day-list');
-  const selectedDayLabel = document.getElementById('lbl-pro-selected-day');
-
-  if (!gridContainer || !monthLabel || !selectedDayList) return;
+  const container = document.getElementById('pro-calendar-weekly-list');
+  if (!container) return;
+  container.innerHTML = '';
 
   const pro = getCurrentPro();
   if (!pro) return;
+
+  if (!currentCalendarStartOfWeek) {
+    currentCalendarStartOfWeek = getStartOfWeek(new Date());
+  }
+
+  const startOfWeek = getStartOfWeek(new Date(currentCalendarStartOfWeek));
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+  // Actualizar etiqueta de la semana
+  const formatShortDate = (d) => {
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${day}/${month}/${d.getFullYear()}`;
+  };
+  const weekLabel = document.getElementById('pro-calendar-week-label');
+  if (weekLabel) {
+    weekLabel.innerText = `Semana: ${formatShortDate(startOfWeek)} - ${formatShortDate(endOfWeek)}`;
+  }
+
+  // Actualizar selects de mes y año
+  const monthSelect = document.getElementById('pro-calendar-month-select');
+  const yearSelect = document.getElementById('pro-calendar-year-select');
+  if (monthSelect) monthSelect.value = startOfWeek.getMonth();
+  if (yearSelect) yearSelect.value = startOfWeek.getFullYear();
 
   // Actualizar recuento de historial en el botón
   const finishedBookings = state.bookings.filter(b => 
@@ -3507,176 +3058,101 @@ function renderProCalendar() {
   const historyBtnCount = document.getElementById('lbl-pro-history-count');
   if (historyBtnCount) historyBtnCount.innerText = finishedBookings.length;
 
-  // Inicializar estado del mes actual
-  if (!state.currentCalendarMonth) {
-    state.currentCalendarMonth = new Date();
-    state.currentCalendarMonth.setDate(1); // Evitar desbordamiento
-  }
-  const date = state.currentCalendarMonth;
-  const year = date.getFullYear();
-  const month = date.getMonth();
+  const dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
 
-  // Inicializar día seleccionado si no existe
-  const todayStr = formatLocalDate(new Date());
-  if (!state.selectedCalendarDate) {
-    state.selectedCalendarDate = todayStr;
-  }
+  dias.forEach((day, index) => {
+    const currentDate = new Date(startOfWeek);
+    currentDate.setDate(startOfWeek.getDate() + index);
+    const dateStr = currentDate.toISOString().split('T')[0];
 
-  // Establecer etiqueta de mes
-  const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-  monthLabel.innerText = `${months[month]} ${year}`;
+    const slots = pro.agenda[day] || [];
+    const dayCard = document.createElement('div');
+    dayCard.className = "bg-slate-955/60 border border-slate-850 rounded-xl p-3 flex flex-col gap-2";
 
-  // Vaciar la grilla de días
-  gridContainer.innerHTML = '';
-
-  // Calcular primer día y total de días
-  const firstDayOfMonth = new Date(year, month, 1);
-  let startDayIndex = firstDayOfMonth.getDay();
-  // Ajustar para que Lunes sea 0 y Domingo sea 6
-  startDayIndex = (startDayIndex === 0) ? 6 : startDayIndex - 1;
-
-  const totalDays = new Date(year, month + 1, 0).getDate();
-
-  // 1. Celdas vacías del mes anterior
-  for (let i = 0; i < startDayIndex; i++) {
-    const emptyCell = document.createElement('div');
-    emptyCell.className = "py-2.5 text-transparent select-none text-[11px] font-bold";
-    emptyCell.innerText = "";
-    gridContainer.appendChild(emptyCell);
-  }
-
-  // 2. Días del mes actual
-  for (let day = 1; day <= totalDays; day++) {
-    const cellDate = new Date(year, month, day);
-    const cellDateStr = formatLocalDate(cellDate);
-
-    const cell = document.createElement('div');
-    cell.setAttribute('data-date', cellDateStr);
-
-    const isSelected = (state.selectedCalendarDate === cellDateStr);
-    const isToday = (todayStr === cellDateStr);
-
-    // Contar reservas de este profesional para este día
     const dayBookings = state.bookings.filter(b => 
       b.proId === pro.id && 
-      b.date === cellDateStr && 
+      b.date === dateStr && 
       (b.status === "Aceptado" || b.status === "Calificado" || b.status === "Finalizado")
     );
-
-    let activeStyle = "text-slate-350 hover:bg-slate-800 hover:text-white";
-    if (isSelected) {
-      activeStyle = "bg-brand-gold-500 text-slate-950 font-black shadow-md shadow-brand-gold-500/10";
-    } else if (isToday) {
-      activeStyle = "border border-brand-gold-500/40 text-brand-gold-500 font-bold bg-brand-gold-500/5";
-    }
-
-    cell.className = `relative py-2.5 text-[11px] font-bold rounded-xl transition cursor-pointer flex flex-col items-center justify-center aspect-square ${activeStyle}`;
-    cell.innerHTML = `<span>${day}</span>`;
-
-    // Si tiene reservas, añadir punto indicador
-    if (dayBookings.length > 0) {
-      const dot = document.createElement('span');
-      if (isSelected) {
-        dot.className = "absolute bottom-1 w-1 h-1 rounded-full bg-slate-950";
-      } else {
-        dot.className = "absolute bottom-1 w-1 h-1 rounded-full bg-brand-gold-500";
-      }
-      cell.appendChild(dot);
-    }
-
-    cell.addEventListener('click', () => {
-      state.selectedCalendarDate = cellDateStr;
-      renderProCalendar();
-    });
-
-    gridContainer.appendChild(cell);
-  }
-
-  // --- RENDERIZAR RESERVAS DEL DÍA SELECCIONADO ---
-  const selDate = parseDateString(state.selectedCalendarDate);
-  
-  // Establecer etiqueta de día seleccionado
-  const diasSemana = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-  const selDayName = diasSemana[selDate.getDay()];
-  const selDayNum = String(selDate.getDate()).padStart(2, '0');
-  const selMonthNum = String(selDate.getMonth() + 1).padStart(2, '0');
-  
-  if (selectedDayLabel) {
-    selectedDayLabel.innerText = `Reservas del ${selDayName} ${selDayNum}/${selMonthNum}`;
-  }
-
-  // Buscar slots en la agenda para este día
-  const diasAgenda = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
-  const dayAgendaName = diasAgenda[selDate.getDay()];
-  const slots = pro.agenda[dayAgendaName] || [];
-
-  selectedDayList.innerHTML = '';
-
-  const dayBookings = state.bookings.filter(b => 
-    b.proId === pro.id && 
-    b.date === state.selectedCalendarDate && 
-    (b.status === "Aceptado" || b.status === "Calificado" || b.status === "Finalizado")
-  );
-
-  if (slots.length === 0) {
-    selectedDayList.innerHTML = `<div class="text-center text-xs text-slate-550 py-6 italic bg-slate-950/40 rounded-2xl border border-slate-850">Sin horarios definidos en tu agenda para los días ${selDayName}.</div>`;
-    return;
-  }
-
-  slots.forEach(time => {
-    const activeBooking = dayBookings.find(b => b.time === time);
-    const row = document.createElement('div');
     
-    if (activeBooking) {
-      let statusBadgeHTML = '';
-      let actionButtonsHTML = '';
+    const dayLabel = `${day} ${currentDate.getDate()}/${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
 
-      if (activeBooking.status === "Aceptado") {
-        statusBadgeHTML = `<span class="text-[9px] bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded">Confirmado</span>`;
-        actionButtonsHTML = `
-          <div class="flex gap-2">
-            <button type="button" onclick="window.rejectAcceptedBooking('${activeBooking.id}')" class="bg-slate-900 hover:bg-red-900/25 border border-red-900/40 text-red-400 font-bold px-2 py-1 rounded text-[10px] transition flex items-center gap-1 active:scale-95 cursor-pointer" title="Rechazar y cancelar el servicio">
-              <i data-lucide="x-circle" class="w-3.5 h-3.5"></i>
-              Rechazar
-            </button>
-            <button type="button" onclick="window.finalizeBooking('${activeBooking.id}')" class="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 font-bold px-2.5 py-1 rounded text-[10px] transition flex items-center gap-1 active:scale-95 cursor-pointer" title="Marcar como finalizado">
-              <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
-              Finalizar
-            </button>
+    dayCard.innerHTML = `
+      <div class="flex justify-between items-center border-b border-slate-900 pb-1.5">
+        <h4 class="font-bold text-white text-xs">${dayLabel}</h4>
+        <span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+          dayBookings.length > 0 ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-slate-900 text-slate-500'
+        }">
+          ${dayBookings.length} Contratados
+        </span>
+      </div>
+      <div class="space-y-2 mt-1.5" id="pro-cal-slots-${day}"></div>
+    `;
+
+    container.appendChild(dayCard);
+
+    const slotsContainer = document.getElementById(`pro-cal-slots-${day}`);
+    
+    if (slots.length === 0) {
+      slotsContainer.innerHTML = `<span class="text-[9px] text-slate-655 italic">Sin horarios en agenda</span>`;
+      return;
+    }
+
+    slots.forEach(time => {
+      const activeBooking = dayBookings.find(b => b.time === time);
+      const row = document.createElement('div');
+      
+      if (activeBooking) {
+        let statusBadgeHTML = '';
+        let actionButtonsHTML = '';
+
+        if (activeBooking.status === "Aceptado") {
+          statusBadgeHTML = `<span class="text-[9px] bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded">Confirmado</span>`;
+          actionButtonsHTML = `
+            <div class="flex gap-2">
+              <button type="button" onclick="window.rejectAcceptedBooking('${activeBooking.id}')" class="bg-slate-900 hover:bg-red-900/25 border border-red-900/40 text-red-400 font-bold px-2 py-1 rounded text-[10px] transition flex items-center gap-1 active:scale-95" title="Rechazar y cancelar el servicio">
+                <i data-lucide="x-circle" class="w-3.5 h-3.5"></i>
+                Rechazar
+              </button>
+              <button type="button" onclick="window.finalizeBooking('${activeBooking.id}')" class="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 font-bold px-2.5 py-1 rounded text-[10px] transition flex items-center gap-1 active:scale-95" title="Marcar como finalizado">
+                <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+                Finalizar
+              </button>
+            </div>
+          `;
+        } else if (activeBooking.status === "Finalizado") {
+          statusBadgeHTML = `<span class="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20">Finalizado</span>`;
+        } else if (activeBooking.status === "Calificado") {
+          statusBadgeHTML = `<span class="text-[9px] bg-brand-gold-500/10 text-brand-gold-500 px-1.5 py-0.5 rounded border border-brand-gold-500/20">Calificado</span>`;
+        }
+
+        row.className = "bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col gap-2 shadow-sm";
+        row.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-xs font-bold text-slate-200 flex items-center gap-1">
+              <span>✔️ ${time} hs</span>
+              ${statusBadgeHTML}
+            </span>
+            <span class="text-[9px] text-slate-500 font-semibold">Reserva #${activeBooking.id}</span>
+          </div>
+          <div class="flex justify-between items-end">
+            <div>
+              <p class="text-[10px] text-white font-bold">Cliente Particular</p>
+              <p class="text-[9px] text-slate-455 mt-0.5">${pro.specialty}</p>
+              <p class="text-[9px] text-brand-gold-500 font-extrabold mt-0.5">Cobro: $${activeBooking.price.toLocaleString('es-AR')}</p>
+            </div>
+            ${actionButtonsHTML}
           </div>
         `;
-      } else if (activeBooking.status === "Finalizado") {
-        statusBadgeHTML = `<span class="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20">Finalizado</span>`;
-      } else if (activeBooking.status === "Calificado") {
-        statusBadgeHTML = `<span class="text-[9px] bg-brand-gold-500/10 text-brand-gold-500 px-1.5 py-0.5 rounded border border-brand-gold-500/20">Calificado</span>`;
+      } else {
+        row.className = "bg-slate-955 border border-slate-900 rounded-lg p-2 flex justify-between items-center text-[10px]";
+        row.innerHTML = `
+          <span class="text-slate-455 font-medium">🔓 ${time} hs</span>
+          <span class="text-[8px] text-slate-600 font-bold uppercase">Libre para Agendar</span>
+        `;
       }
-
-      row.className = "bg-slate-900/90 border border-slate-850 rounded-2xl p-3.5 flex flex-col gap-2 shadow-sm";
-      row.innerHTML = `
-        <div class="flex justify-between items-center">
-          <span class="text-xs font-black text-slate-200 flex items-center gap-1.5">
-            <span>📅 ${time} hs</span>
-            ${statusBadgeHTML}
-          </span>
-          <span class="text-[9px] text-slate-500 font-semibold">Reserva #${activeBooking.id}</span>
-        </div>
-        <div class="flex justify-between items-end">
-          <div>
-            <p class="text-[10px] text-white font-bold">${activeBooking.clientName || 'Cliente Particular'}</p>
-            <p class="text-[9px] text-slate-455 mt-0.5">${pro.specialty}</p>
-            <p class="text-[9px] text-brand-gold-500 font-black mt-0.5">Cobro: $${activeBooking.price.toLocaleString('es-AR')}</p>
-          </div>
-          ${actionButtonsHTML}
-        </div>
-      `;
-    } else {
-      row.className = "bg-slate-955 border border-slate-900 rounded-lg p-2.5 flex justify-between items-center text-[10px]";
-      row.innerHTML = `
-        <span class="text-slate-455 font-medium">🔓 ${time} hs</span>
-        <span class="text-[8px] text-slate-600 font-bold uppercase tracking-wider">Libre para Agendar</span>
-      `;
-    }
-    selectedDayList.appendChild(row);
+      slotsContainer.appendChild(row);
+    });
   });
 
   lucide.createIcons();
@@ -3710,593 +3186,20 @@ window.rejectAcceptedBooking = (bookingId) => {
   renderProfessionals();
 };
 
-window.finalizeBooking = (bookingId) => {
-  const booking = state.bookings.find(b => String(b.id) === String(bookingId));
-  if (!booking) return;
-  booking.status = "Finalizado";
-
-  const pro = state.professionals.find(p => p.id === booking.proId);
-  if (pro) {
-    if (typeof pro.cashDebt === 'undefined') pro.cashDebt = 0;
-    const price = booking.price || booking.total || 0;
-    const commission = Math.round(price * 0.15);
-
-    if (booking.paymentMethod === 'cash') {
-      pro.cashDebt += commission;
-      showToast("💵 Trabajo Finalizado (Efectivo)", `Cobro de $${price.toLocaleString('es-AR')} en mano. +$${commission.toLocaleString('es-AR')} de comisión adeudada a la app.`, "success");
-    } else {
-      let debtDeducted = 0;
-      if (pro.cashDebt > 0) {
-        debtDeducted = Math.min(pro.cashDebt, price - commission);
-        pro.cashDebt -= debtDeducted;
-      }
-      if (debtDeducted > 0) {
-        showToast("💳 Trabajo Finalizado (Tarjeta)", `Cobro digital. Se descontaron $${debtDeducted.toLocaleString('es-AR')} de tu saldo adeudado con Arkantos.`, "success");
-      } else {
-        showToast("💳 Trabajo Finalizado (Tarjeta)", `Cobro digital acreditado. 15% de comisión ($${commission.toLocaleString('es-AR')}) debitado a la app.`, "success");
-      }
-    }
-  }
-
-  saveToLocalStorage();
-  updateDashboardMetrics();
-  renderProCalendar();
-};
-
-state.activeSelectedPaymentMethod = 'card';
-
-window.openPaymentMethodModal = () => {
-  const { proId, day, time, agreedPrice } = state.selectedBooking;
-  const pro = state.professionals.find(p => p.id === proId);
-  if (!pro) return;
-
-  const basePrice = agreedPrice || pro.price;
-  const commission = Math.round(basePrice * 0.15);
-  const total = basePrice + commission;
-
-  document.getElementById('pay-modal-pro-name').innerText = pro.name;
-  document.getElementById('pay-modal-datetime').innerText = `${day} (${time} hs)`;
-  document.getElementById('pay-modal-total-price').innerText = `$${total.toLocaleString('es-AR')}`;
-
-  window.selectPaymentMethodOption('card');
-
-  const modal = document.getElementById('payment-method-modal');
-  if (modal) {
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    try { lucide.createIcons(); } catch (e) {}
-  }
-};
-
-window.closePaymentMethodModal = () => {
-  const modal = document.getElementById('payment-method-modal');
-  if (modal) {
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-  }
-};
-
-window.selectPaymentMethodOption = (method) => {
-  state.activeSelectedPaymentMethod = method;
-  const cardOpt = document.getElementById('option-pay-card');
-  const cashOpt = document.getElementById('option-pay-cash');
-
-  if (!cardOpt || !cashOpt) return;
-
-  if (method === 'card') {
-    cardOpt.className = "payment-option-card bg-slate-900 border-2 border-brand-gold-500 p-3 rounded-2xl cursor-pointer transition-all flex items-start gap-3 shadow-md shadow-brand-gold-500/10";
-    cashOpt.className = "payment-option-card bg-slate-900/60 border border-slate-850 p-3 rounded-2xl cursor-pointer transition-all flex items-start gap-3 opacity-70 hover:opacity-100";
-    
-    const cardCheck = cardOpt.querySelector('i');
-    const cashCheck = cashOpt.querySelector('i');
-    if (cardCheck) cardCheck.classList.remove('hidden');
-    if (cashCheck) cashCheck.classList.add('hidden');
-  } else {
-    cashOpt.className = "payment-option-card bg-slate-900 border-2 border-amber-500 p-3 rounded-2xl cursor-pointer transition-all flex items-start gap-3 shadow-md shadow-amber-500/10";
-    cardOpt.className = "payment-option-card bg-slate-900/60 border border-slate-850 p-3 rounded-2xl cursor-pointer transition-all flex items-start gap-3 opacity-70 hover:opacity-100";
-    
-    const cardCheck = cardOpt.querySelector('i');
-    const cashCheck = cashOpt.querySelector('i');
-    if (cashCheck) cashCheck.classList.remove('hidden');
-    if (cardCheck) cardCheck.classList.add('hidden');
-  }
-};
-
-window.processFinalBookingWithPayment = () => {
-  const { proId, day, time, agreedPrice } = state.selectedBooking;
-  if (!proId || !day || !time) return;
-
-  const pro = state.professionals.find(p => p.id === proId);
-  if (!pro) return;
-
-  const basePrice = agreedPrice || pro.price;
-  const commission = Math.round(basePrice * 0.15);
-  const total = basePrice + commission;
-  const method = state.activeSelectedPaymentMethod || 'card';
-
-  const newBooking = {
-    id: Date.now(),
-    proId: proId,
-    proName: pro.name,
-    clientEmail: state.currentUser ? state.currentUser.email : "",
-    clientName: state.currentUser ? state.currentUser.name : "",
-    category: pro.category,
-    date: day,
-    time: time,
-    price: basePrice,
-    total: total,
-    status: agreedPrice ? "Finalizado" : "Pendiente",
-    paymentMethod: method,
-    paymentStatus: method === 'card' ? 'Paid' : 'Pending'
-  };
-
-  // Si ya es un servicio finalizado (aceptado desde chat), aplicar comisión/deuda de inmediato
-  if (newBooking.status === "Finalizado") {
-    if (typeof pro.cashDebt === 'undefined') pro.cashDebt = 0;
-    if (method === 'cash') {
-      pro.cashDebt += commission;
-      showToast("💵 Presupuesto Aceptado (Efectivo)", `Monto: $${basePrice.toLocaleString('es-AR')}. +$${commission.toLocaleString('es-AR')} de comisión acumulada en tu saldo adeudado.`, "success");
-    } else {
-      let debtDeducted = 0;
-      if (pro.cashDebt > 0) {
-        debtDeducted = Math.min(pro.cashDebt, basePrice - commission);
-        pro.cashDebt -= debtDeducted;
-      }
-      if (debtDeducted > 0) {
-        showToast("💳 Presupuesto Aceptado (Tarjeta)", `Cobro digital. Se descontaron $${debtDeducted.toLocaleString('es-AR')} de tu saldo adeudado con Arkantos.`, "success");
-      } else {
-        showToast("💳 Presupuesto Aceptado (Tarjeta)", `Cobro digital acreditado. 15% de comisión ($${commission.toLocaleString('es-AR')}) debitado a la app.`, "success");
-      }
-    }
-  }
-
-  state.bookings.push(newBooking);
-  saveToLocalStorage();
-  window.closePaymentMethodModal();
-  closeBookingSheet();
-
-  const methodText = method === 'card' ? '💳 Tarjeta/Mercado Pago' : '💵 Efectivo en Mano';
-
-  if (newBooking.status !== "Finalizado") {
-    showToast(
-      "¡Turno Agendado!", 
-      `Turno enviado a ${pro.name} (${methodText}).`, 
-      "success"
-    );
-  }
-
-  renderClientBookings();
-
-  try {
-    checkBookingReminders();
-  } catch (e) {}
-
-  const currentPro = getCurrentPro();
-  if (proId === currentPro.id) {
-    renderPendingBookings();
-    renderProCalendar();
-  }
-};
-
-window.openPayAppDebtModal = () => {
-  const pro = getCurrentPro();
-  if (!pro) return;
-  const debt = pro.cashDebt || 0;
-
-  const elModalAmount = document.getElementById('pay-app-modal-amount');
-  if (elModalAmount) elModalAmount.innerText = `$${debt.toLocaleString('es-AR')}`;
-
-  const modal = document.getElementById('pay-app-debt-modal');
-  if (modal) {
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    try { lucide.createIcons(); } catch (e) {}
-  }
-};
-
-window.closePayAppDebtModal = () => {
-  const modal = document.getElementById('pay-app-debt-modal');
-  if (modal) {
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-  }
-};
-
-window.selectProPaymentMethod = (method) => {
-  const btnMp = document.getElementById('btn-pro-pay-mp');
-  const btnCard = document.getElementById('btn-pro-pay-card');
-  if (!btnMp || !btnCard) return;
-
-  if (method === 'mp') {
-    btnMp.className = "bg-slate-900 border-2 border-brand-gold-500 p-2.5 rounded-xl text-center flex flex-col items-center gap-1 transition cursor-pointer";
-    btnCard.className = "bg-slate-900/60 border border-slate-850 p-2.5 rounded-xl text-center flex flex-col items-center gap-1 transition opacity-70 hover:opacity-100 cursor-pointer";
-  } else {
-    btnCard.className = "bg-slate-900 border-2 border-brand-gold-500 p-2.5 rounded-xl text-center flex flex-col items-center gap-1 transition cursor-pointer";
-    btnMp.className = "bg-slate-900/60 border border-slate-850 p-2.5 rounded-xl text-center flex flex-col items-center gap-1 transition opacity-70 hover:opacity-100 cursor-pointer";
-  }
-};
-
-window.processProDebtPayment = () => {
-  const pro = getCurrentPro();
-  if (!pro) return;
-  const debt = pro.cashDebt || 0;
-
-  if (debt <= 0) {
-    showToast("✅ Cuenta al Día", "No tienes deudas pendientes con Arkantos.", "info");
-    window.closePayAppDebtModal();
-    return;
-  }
-
-  pro.cashDebt = 0;
-  saveToLocalStorage();
-  window.closePayAppDebtModal();
-  renderProUberBillingData();
-
-  showToast(
-    "🎉 Pago Recibido",
-    `Has abonado $${debt.toLocaleString('es-AR')} de comisión a Arkantos. Tu estado de cuenta quedó en $0 (Al Día).`,
-    "success"
-  );
-};
-
-window.openProBillingModal = (timeframe = 'day') => {
-  const modal = document.getElementById('pro-billing-modal');
-  if (!modal) return;
-  
-  window.switchProBillingTimeframe(timeframe);
-  
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-  try { lucide.createIcons(); } catch (e) {}
-};
-
-window.closeProBillingModal = () => {
-  const modal = document.getElementById('pro-billing-modal');
-  if (modal) {
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-  }
-};
-
-window.switchProBillingTimeframe = (timeframe = 'day') => {
-  state.activeProBillingTimeframe = timeframe;
-  renderProUberBillingData(timeframe);
-};
-
-function renderProUberBillingData(selectedTimeframe) {
-  const pro = getCurrentPro();
-  if (!pro) return;
-
-  const timeframe = selectedTimeframe || state.activeProBillingTimeframe || 'day';
-
-  const proBookings = state.bookings.filter(b => 
-    b.proId === pro.id && 
-    (b.status === "Finalizado" || b.status === "Calificado" || b.status === "Aceptado")
-  );
-
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-
-  // Lunes de esta semana
-  const startOfWeek = new Date(now);
-  const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1;
-  startOfWeek.setDate(now.getDate() - dayOfWeek);
-  startOfWeek.setHours(0, 0, 0, 0);
-
-  // Día 1 de este mes
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  let dayAmount = 0, dayCount = 0, dayBookings = [], dayTips = 0;
-  let weekAmount = 0, weekCount = 0, weekBookings = [], weekTips = 0;
-  let monthAmount = 0, monthCount = 0, monthBookings = [], monthTips = 0;
-  let totalGross = 0, totalTips = 0;
-
-  proBookings.forEach(b => {
-    const price = b.price || b.total || 0;
-    const tip = b.tip || 0;
-    totalGross += price;
-    totalTips += tip;
-
-    let bDate = new Date();
-    try {
-      if (b.date) {
-        if (b.date.includes('-')) {
-          bDate = new Date(b.date + 'T00:00:00');
-        } else if (b.date.includes('/')) {
-          const parts = b.date.split('/');
-          if (parts.length === 3) {
-            bDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
-          }
-        }
-      }
-    } catch (e) {}
-
-    const bDateStr = !isNaN(bDate.getTime()) ? bDate.toISOString().split('T')[0] : '';
-    
-    if (bDateStr === todayStr) {
-      dayAmount += price;
-      dayTips += tip;
-      dayCount++;
-      dayBookings.push(b);
-    }
-
-    if (!isNaN(bDate.getTime()) && bDate >= startOfWeek) {
-      weekAmount += price;
-      weekTips += tip;
-      weekCount++;
-      weekBookings.push(b);
-    }
-
-    if (!isNaN(bDate.getTime()) && bDate >= startOfMonth) {
-      monthAmount += price;
-      monthTips += tip;
-      monthCount++;
-      monthBookings.push(b);
-    }
-  });
-
-  // Calcular neto y ganancias totales de bolsillo (Neto + Propinas) para cada botón de la pestaña
-  const dayTakeHome = Math.round(dayAmount * 0.85) + dayTips;
-  const weekTakeHome = Math.round(weekAmount * 0.85) + weekTips;
-  const monthTakeHome = Math.round(monthAmount * 0.85) + monthTips;
-  const totalTakeHome = Math.round(totalGross * 0.85) + totalTips;
-
-  // Actualizar valores en los 4 botones de las pestañas
-  const tabDayVal = document.getElementById('lbl-billing-tab-day-val');
-  const tabWeekVal = document.getElementById('lbl-billing-tab-week-val');
-  const tabMonthVal = document.getElementById('lbl-billing-tab-month-val');
-  const tabAllVal = document.getElementById('lbl-billing-tab-all-val');
-
-  if (tabDayVal) tabDayVal.innerText = `$${dayTakeHome.toLocaleString('es-AR')}`;
-  if (tabWeekVal) tabWeekVal.innerText = `$${weekTakeHome.toLocaleString('es-AR')}`;
-  if (tabMonthVal) tabMonthVal.innerText = `$${monthTakeHome.toLocaleString('es-AR')}`;
-  if (tabAllVal) tabAllVal.innerText = `$${totalTakeHome.toLocaleString('es-AR')}`;
-
-  // Resaltar la pestaña activa
-  const tabs = [
-    { id: 'btn-billing-filter-day', key: 'day' },
-    { id: 'btn-billing-filter-week', key: 'week' },
-    { id: 'btn-billing-filter-month', key: 'month' },
-    { id: 'btn-billing-filter-all', key: 'all' }
-  ];
-
-  tabs.forEach(t => {
-    const btn = document.getElementById(t.id);
-    if (btn) {
-      if (t.key === timeframe) {
-        btn.className = "btn-billing-tab py-2 px-1 rounded-xl text-center flex flex-col items-center justify-center transition-all bg-brand-gold-500/20 border border-brand-gold-500/50 shadow-md";
-      } else {
-        btn.className = "btn-billing-tab py-2 px-1 rounded-xl text-center flex flex-col items-center justify-center transition-all bg-slate-950/60 border border-slate-850/60 opacity-60 hover:opacity-100";
-      }
-    }
-  });
-
-  // Seleccionar datos del período activo
-  let activeGross = 0;
-  let activeTips = 0;
-  let activeCount = 0;
-  let activeBookings = [];
-  let titleHTML = '';
-
-  if (timeframe === 'day') {
-    activeGross = dayAmount;
-    activeTips = dayTips;
-    activeCount = dayCount;
-    activeBookings = dayBookings;
-    titleHTML = `<i data-lucide="sun" class="w-4 h-4 text-amber-400"></i> Facturación de Hoy`;
-  } else if (timeframe === 'week') {
-    activeGross = weekAmount;
-    activeTips = weekTips;
-    activeCount = weekCount;
-    activeBookings = weekBookings;
-    titleHTML = `<i data-lucide="calendar" class="w-4 h-4 text-blue-400"></i> Facturación de esta Semana`;
-  } else if (timeframe === 'month') {
-    activeGross = monthAmount;
-    activeTips = monthTips;
-    activeCount = monthCount;
-    activeBookings = monthBookings;
-    titleHTML = `<i data-lucide="trending-up" class="w-4 h-4 text-green-400"></i> Facturación de este Mes`;
-  } else {
-    activeGross = totalGross;
-    activeTips = totalTips;
-    activeCount = proBookings.length;
-    activeBookings = proBookings;
-    titleHTML = `<i data-lucide="shield-check" class="w-4 h-4 text-brand-gold-500"></i> Balance Total Acumulado`;
-  }
-
-  const activeComision = Math.round(activeGross * 0.15);
-  const activeNet = activeGross - activeComision;
-  const activeTotalTakehome = activeNet + activeTips;
-
-  const elTitle = document.getElementById('lbl-billing-active-title');
-  const elCount = document.getElementById('lbl-billing-active-count');
-  const elNet = document.getElementById('lbl-billing-active-net');
-  const elComision = document.getElementById('lbl-billing-active-comision');
-  const elTips = document.getElementById('lbl-billing-active-tips');
-  const elTotalTakehome = document.getElementById('lbl-billing-active-total-takehome');
-  const elGross = document.getElementById('lbl-billing-active-gross');
-  const elHistCount = document.getElementById('lbl-billing-history-count');
-  const elListTitle = document.getElementById('lbl-billing-list-title');
-
-  if (elTitle) elTitle.innerHTML = titleHTML;
-  if (elCount) elCount.innerText = `${activeCount} Trabajo${activeCount === 1 ? '' : 's'}`;
-  if (elNet) elNet.innerText = `$${activeNet.toLocaleString('es-AR')}`;
-  if (elComision) elComision.innerText = `-$${activeComision.toLocaleString('es-AR')}`;
-  if (elTips) elTips.innerText = `+$${activeTips.toLocaleString('es-AR')}`;
-  if (elTotalTakehome) elTotalTakehome.innerText = `$${activeTotalTakehome.toLocaleString('es-AR')}`;
-  if (elGross) elGross.innerText = `$${activeGross.toLocaleString('es-AR')}`;
-  if (elHistCount) elHistCount.innerText = `${activeBookings.length} Transaccion${activeBookings.length === 1 ? '' : 'es'}`;
-  
-  if (elListTitle) {
-    if (timeframe === 'day') elListTitle.innerText = "Trabajos Realizados Hoy";
-    else if (timeframe === 'week') elListTitle.innerText = "Trabajos Realizados Esta Semana";
-    else if (timeframe === 'month') elListTitle.innerText = "Trabajos Realizados Este Mes";
-    else elListTitle.innerText = "Historial Completo de Trabajos";
-  }
-
-  // Rellenar lista de historial filtrada para el período
-  const historyList = document.getElementById('pro-billing-history-list');
-  if (historyList) {
-    historyList.innerHTML = '';
-    if (activeBookings.length === 0) {
-      historyList.innerHTML = `<div class="text-center text-xs text-slate-550 py-6 italic bg-slate-950/40 rounded-2xl border border-slate-850">No hay cobros registrados en este período.</div>`;
-    } else {
-      activeBookings.slice().reverse().forEach(b => {
-        const item = document.createElement('div');
-        item.className = "bg-slate-900 border border-slate-850 p-3 rounded-2xl flex justify-between items-center text-xs";
-        const price = b.price || b.total || 0;
-        const com = Math.round(price * 0.15);
-        const net = price - com;
-
-        const isCash = b.paymentMethod === 'cash';
-        const methodBadge = isCash 
-          ? `<span class="text-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold">💵 Efectivo</span>`
-          : `<span class="text-[8px] bg-brand-gold-500/10 text-brand-gold-500 border border-brand-gold-500/25 px-1.5 py-0.5 rounded font-bold">💳 Tarjeta</span>`;
-
-        const tip = b.tip || 0;
-        const tipBadge = tip > 0 
-          ? `<span class="text-[8px] bg-blue-500/15 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-bold">🎁 Propina: +$${tip.toLocaleString('es-AR')}</span>`
-          : '';
-
-        const rowTotal = net + tip;
-
-        item.innerHTML = `
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-xl bg-green-500/10 border border-green-500/30 flex items-center justify-center text-green-400 font-bold shrink-0">
-              <i data-lucide="check" class="w-4 h-4"></i>
-            </div>
-            <div>
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <h4 class="font-extrabold text-white text-xs">${b.clientName || 'Cliente Particular'}</h4>
-                ${methodBadge}
-                ${tipBadge}
-              </div>
-              <span class="text-[9px] text-slate-500 block">${b.category || 'Servicio'} • ${b.date || 'Hoy'} (${b.time || '12:00'} hs)</span>
-            </div>
-          </div>
-          <div class="text-right">
-            <span class="text-xs font-black text-emerald-400 block">+$${rowTotal.toLocaleString('es-AR')}</span>
-            <span class="text-[8px] text-slate-500 block font-semibold">Bruto: $${price.toLocaleString('es-AR')} (Com: -$${com.toLocaleString('es-AR')}) ${tip > 0 ? `+ Propina: $${tip.toLocaleString('es-AR')}` : ''}</span>
-          </div>
-        `;
-        historyList.appendChild(item);
-      });
-    }
-  }
-
-  const proDebt = pro.cashDebt || 0;
-  const elCashDebt = document.getElementById('lbl-pro-cash-debt');
-  const elDebtBadge = document.getElementById('lbl-pro-debt-badge');
-
-  if (elCashDebt) elCashDebt.innerText = `$${proDebt.toLocaleString('es-AR')}`;
-  if (elDebtBadge) {
-    if (proDebt > 0) {
-      elDebtBadge.innerText = `Saldo Adeudado: -$${proDebt.toLocaleString('es-AR')}`;
-      elDebtBadge.className = "text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400";
-    } else {
-      elDebtBadge.innerText = "Al Día ($0)";
-      elDebtBadge.className = "text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400";
-    }
-  }
-
-  try { lucide.createIcons(); } catch (e) {}
-}
-
 function updateDashboardMetrics() {
   const pro = getCurrentPro();
-  if (!pro) return;
+  const bookingsFiltered = state.bookings.filter(b => b.proId === pro.id && (b.status === "Aceptado" || b.status === "Calificado" || b.status === "Finalizado"));
+  const earned = bookingsFiltered.reduce((sum, b) => sum + b.price, 0);
+  const comision = Math.round(earned * 0.15);
 
-  const proBookings = state.bookings.filter(b => 
-    b.proId === pro.id && 
-    (b.status === "Aceptado" || b.status === "Calificado" || b.status === "Finalizado")
-  );
+  document.getElementById('total-earnings').innerText = `$${earned.toLocaleString('es-AR')}`;
+  document.getElementById('total-comision').innerText = `$${comision.toLocaleString('es-AR')}`;
 
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-
-  const startOfWeek = new Date(now);
-  const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1;
-  startOfWeek.setDate(now.getDate() - dayOfWeek);
-  startOfWeek.setHours(0, 0, 0, 0);
-
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  let dayAmount = 0, dayCount = 0;
-  let weekAmount = 0, weekCount = 0;
-  let monthAmount = 0, monthCount = 0;
-  let totalGross = 0;
-
-  proBookings.forEach(b => {
-    const price = b.price || b.total || 0;
-    totalGross += price;
-
-    let bDate = new Date();
-    try {
-      if (b.date) {
-        if (b.date.includes('-')) {
-          bDate = new Date(b.date + 'T00:00:00');
-        } else if (b.date.includes('/')) {
-          const parts = b.date.split('/');
-          if (parts.length === 3) {
-            bDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
-          }
-        }
-      }
-    } catch (e) {}
-
-    const bDateStr = !isNaN(bDate.getTime()) ? bDate.toISOString().split('T')[0] : '';
-    
-    if (bDateStr === todayStr) {
-      dayAmount += price;
-      dayCount++;
-    }
-
-    if (!isNaN(bDate.getTime()) && bDate >= startOfWeek) {
-      weekAmount += price;
-      weekCount++;
-    }
-
-    if (!isNaN(bDate.getTime()) && bDate >= startOfMonth) {
-      monthAmount += price;
-      monthCount++;
-    }
-  });
-
-  const comision = Math.round(totalGross * 0.15);
-
-  // Actualizar Tarjeta Principal del Dashboard
-  const elDashDayAmt = document.getElementById('dash-billing-day-amount');
-  const elDashDayCnt = document.getElementById('dash-billing-day-count');
-  const elDashWkAmt = document.getElementById('dash-billing-week-amount');
-  const elDashWkCnt = document.getElementById('dash-billing-week-count');
-  const elDashMoAmt = document.getElementById('dash-billing-month-amount');
-  const elDashMoCnt = document.getElementById('dash-billing-month-count');
-
-  if (elDashDayAmt) elDashDayAmt.innerText = `$${dayAmount.toLocaleString('es-AR')}`;
-  if (elDashDayCnt) elDashDayCnt.innerText = `${dayCount} Trabajo${dayCount === 1 ? '' : 's'}`;
-  if (elDashWkAmt) elDashWkAmt.innerText = `$${weekAmount.toLocaleString('es-AR')}`;
-  if (elDashWkCnt) elDashWkCnt.innerText = `${weekCount} Trabajo${weekCount === 1 ? '' : 's'}`;
-  if (elDashMoAmt) elDashMoAmt.innerText = `$${monthAmount.toLocaleString('es-AR')}`;
-  if (elDashMoCnt) elDashMoCnt.innerText = `${monthCount} Trabajo${monthCount === 1 ? '' : 's'}`;
-
-  const totalEarningsEl = document.getElementById('total-earnings');
-  const totalComisionEl = document.getElementById('total-comision');
-  if (totalEarningsEl) totalEarningsEl.innerText = `$${totalGross.toLocaleString('es-AR')}`;
-  if (totalComisionEl) totalComisionEl.innerText = `$${comision.toLocaleString('es-AR')}`;
-
-  const appStatusEl = document.getElementById('app-balance-status');
-  const debtEl = document.getElementById('lbl-balance-debt');
-  if (appStatusEl) appStatusEl.innerText = `- $${comision.toLocaleString('es-AR')}`;
-  if (debtEl) debtEl.innerText = `-$${comision.toLocaleString('es-AR')}`;
-
-  const ratingEl = document.getElementById('lbl-pro-dash-rating');
-  const posReviewsEl = document.getElementById('lbl-pro-dash-percent-pos');
-  const acceptPercentEl = document.getElementById('lbl-pro-dash-acceptance-percent');
-  if (ratingEl) ratingEl.innerText = pro.rating ? pro.rating.toFixed(1) : "5.0";
-  if (posReviewsEl) posReviewsEl.innerText = `${pro.positiveReviewsPercent || 100}%`;
-  if (acceptPercentEl) acceptPercentEl.innerText = `${pro.acceptancePercent || 100}%`;
+  document.getElementById('app-balance-status').innerText = `- $${comision.toLocaleString('es-AR')}`;
+  document.getElementById('lbl-balance-debt').innerText = `-$${comision.toLocaleString('es-AR')}`;
+  document.getElementById('lbl-pro-dash-rating').innerText = pro.rating.toFixed(1);
+  document.getElementById('lbl-pro-dash-percent-pos').innerText = `${pro.positiveReviewsPercent}%`;
+  document.getElementById('lbl-pro-dash-acceptance-percent').innerText = `${pro.acceptancePercent}%`;
   
   try {
     renderProHistory();
@@ -4394,7 +3297,7 @@ function renderPendingBookings() {
   });
 }
 
-// --- CONFIGURACIÓN DE DISPONIBILIDAD (COLAPSABLE CON INGRESO MANUAL) ---
+// --- CONFIGURACIÓN DE DISPONIBILIDAD (OPCIONAL) ---
 function renderAvailabilityEditor() {
   const container = document.getElementById('availability-days-editor');
   if (!container) return;
@@ -4405,207 +3308,51 @@ function renderAvailabilityEditor() {
 
   const dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
 
-  if (!state.expandedAvailabilityDays) {
-    state.expandedAvailabilityDays = { "Lunes": true }; // Lunes abierto por defecto
-  }
-
   dias.forEach(day => {
     const activeHours = pro.agenda[day] || [];
-    const isExpanded = !!state.expandedAvailabilityDays[day];
+    const div = document.createElement('div');
+    div.className = "bg-slate-955/60 border border-slate-850 p-2.5 rounded-xl flex flex-col gap-2";
 
-    const card = document.createElement('div');
-    card.className = "bg-slate-900/80 border border-slate-850 rounded-2xl overflow-hidden transition shadow-sm";
-
-    let bodyHTML = '';
-    if (isExpanded) {
-      bodyHTML = `
-        <div class="p-3.5 pt-0 border-t border-slate-900 flex flex-col gap-3.5 bg-slate-950/20">
-          <div class="space-y-1.5 mt-2">
-            <span class="text-[9px] text-slate-550 font-black uppercase tracking-widest block">Seleccionar horarios rápidos:</span>
-            <div class="flex flex-wrap gap-1.5" id="avail-hours-${day}"></div>
-          </div>
-          
-          <div class="border-t border-slate-900/60 pt-3 flex items-end gap-2.5">
-            <div class="flex-1 flex flex-col gap-1">
-              <label class="text-[9px] text-slate-555 font-black uppercase tracking-widest block">Horario personalizado (ej: 09:30):</label>
-              <input type="time" id="custom-time-${day}" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-gold-500 transition font-bold">
-            </div>
-            <button type="button" onclick="window.addCustomAvailabilityTime('${day}')" class="bg-brand-gold-500 hover:bg-brand-gold-600 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-[10px] uppercase tracking-wider transition active:scale-95 flex items-center gap-1 cursor-pointer shrink-0 h-[32px] justify-center">
-              <i data-lucide="plus" class="w-3.5 h-3.5 pointer-events-none"></i>
-              <span>Agregar</span>
-            </button>
-          </div>
-        </div>
-      `;
-    }
-
-    card.innerHTML = `
-      <div class="flex justify-between items-center p-3.5 cursor-pointer hover:bg-slate-850/30 transition select-none" onclick="window.toggleAvailabilityDay('${day}')">
-        <div class="flex items-center gap-2">
-          <span class="text-xs font-black text-slate-100">${day}</span>
-          <span class="text-[9px] bg-brand-gold-500/10 text-brand-gold-500 px-1.5 py-0.5 rounded font-extrabold uppercase">${activeHours.length} Horarios</span>
-        </div>
-        <div class="flex items-center gap-1.5">
-          <span class="text-[9px] text-slate-550 font-semibold uppercase tracking-wider">${isExpanded ? 'Ocultar' : 'Configurar'}</span>
-          <i data-lucide="${isExpanded ? 'chevron-up' : 'chevron-down'}" class="w-4 h-4 text-slate-400 pointer-events-none"></i>
-        </div>
+    div.innerHTML = `
+      <div class="flex justify-between items-center">
+        <span class="text-xs font-bold text-white">${day}</span>
+        <span class="text-[9px] text-slate-500 font-semibold uppercase">${activeHours.length} Horarios</span>
       </div>
-      ${bodyHTML}
+      <div class="flex flex-wrap gap-1.5" id="avail-hours-${day}"></div>
     `;
 
-    container.appendChild(card);
+    container.appendChild(div);
 
-    if (isExpanded) {
-      const hoursContainer = document.getElementById(`avail-hours-${day}`);
-      if (hoursContainer) {
-        const defaultSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
-        const allSlotsSet = new Set([...defaultSlots, ...activeHours]);
-        const allSlots = Array.from(allSlotsSet).sort();
+    const hoursContainer = document.getElementById(`avail-hours-${day}`);
+    const availableSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 
-        allSlots.forEach(time => {
-          const isActive = activeHours.includes(time);
-          const hourBtn = document.createElement('button');
-          hourBtn.className = `px-2 py-1 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
-            isActive 
-              ? 'bg-brand-gold-500/10 text-brand-gold-500 border-brand-gold-500/40' 
-              : 'bg-slate-900 text-slate-550 border-slate-850 hover:bg-slate-850 hover:text-white'
-          }`;
-          hourBtn.innerText = time;
+    availableSlots.forEach(time => {
+      const isActive = activeHours.includes(time);
+      const hourBtn = document.createElement('button');
+      hourBtn.className = `px-2 py-1 text-[10px] font-bold rounded-lg border transition ${
+        isActive 
+          ? 'bg-brand-gold-500/10 text-brand-gold-500 border-brand-gold-500/40' 
+          : 'bg-slate-900 text-slate-550 border-slate-850'
+      }`;
+      hourBtn.innerText = time;
 
-          hourBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Evitar colapso al clickear botón de hora
-            if (isActive) {
-              pro.agenda[day] = pro.agenda[day].filter(h => h !== time);
-            } else {
-              pro.agenda[day].push(time);
-              pro.agenda[day].sort();
-            }
-            saveToLocalStorage();
-            renderAvailabilityEditor();
-            renderProCalendar();
-            showToast("Agenda Actualizada", `Disponibilidad de ${day} modificada.`, "success");
-          });
+      hourBtn.addEventListener('click', () => {
+        if (isActive) {
+          pro.agenda[day] = pro.agenda[day].filter(h => h !== time);
+        } else {
+          pro.agenda[day].push(time);
+          pro.agenda[day].sort();
+        }
+        saveToLocalStorage();
+        renderAvailabilityEditor();
+        renderProCalendar();
+        showToast("Agenda Actualizada", `Disponibilidad de ${day} modificada.`, "success");
+      });
 
-          hoursContainer.appendChild(hourBtn);
-        });
-      }
-    }
+      hoursContainer.appendChild(hourBtn);
+    });
   });
-
-  lucide.createIcons();
 }
-
-window.endSosSearch = function(cancelled = false) {
-  const modal = document.getElementById('client-sos-searching-modal');
-  if (modal) {
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-  }
-
-  if (state.activeSosRequest) {
-    if (state.activeSosRequest.timer) {
-      clearInterval(state.activeSosRequest.timer);
-      state.activeSosRequest.timer = null;
-    }
-    state.activeSosRequest = null;
-  }
-
-  if (cancelled) {
-    showToast("🚫 Búsqueda Cancelada", "Has cancelado la solicitud de asistencia de urgencia.", "info");
-  }
-};
-
-window.triggerNextSosCandidate = function() {
-  if (!state.activeSosRequest) return;
-
-  const req = state.activeSosRequest;
-  if (req.timer) {
-    if (typeof req.timer === 'number') clearInterval(req.timer);
-    clearTimeout(req.timer);
-    req.timer = null;
-  }
-
-  const candidates = req.candidates || [];
-  const statusLbl = document.getElementById('lbl-sos-searching-status');
-
-  if (candidates.length === 0) {
-    if (statusLbl) statusLbl.innerText = `Escaneando red de guardia de ${req.category}...`;
-    req.timer = setTimeout(() => {
-      window.endSosSearch(false);
-      showToast("⚠️ Sin Prestadores de Guardia", `No hay profesionales de ${req.category} con radar activo en este momento.`, "warning");
-    }, 3500);
-    return;
-  }
-
-  if (req.currentIndex >= candidates.length) {
-    window.endSosSearch(false);
-    showToast("⚠️ Sin Respuesta", "Ningún prestador de guardia aceptó la solicitud en este momento.", "warning");
-    return;
-  }
-
-  const currentPro = candidates[req.currentIndex];
-  req.countdown = 15;
-
-  if (statusLbl) {
-    statusLbl.innerText = `Contactando a ${currentPro.name} (${currentPro.category})...`;
-  }
-
-  req.timer = setInterval(() => {
-    req.countdown--;
-    if (req.countdown <= 0) {
-      clearInterval(req.timer);
-      req.timer = null;
-      req.currentIndex++;
-      window.triggerNextSosCandidate();
-    }
-  }, 1000);
-};
-
-window.submitSosRequest = function() {
-  const clientSosSelect = document.getElementById('client-sos-request-category');
-  const selectedCategory = clientSosSelect ? clientSosSelect.value : '';
-
-  if (!selectedCategory) {
-    showToast("⚠️ Rubro Requerido", "Por favor selecciona el rubro o especialidad necesitada.", "warning");
-    return;
-  }
-
-  const detailInput = document.getElementById('client-sos-request-detail');
-  const detail = detailInput ? detailInput.value.trim() : '';
-
-  // 1. Priorizar profesionales activos del rubro
-  let candidates = state.professionals.filter(p => p && p.active && matchCategory(p.category, selectedCategory));
-  
-  // 2. Si no hay activos en línea, incluir prestadores registrados del rubro
-  if (candidates.length === 0) {
-    candidates = state.professionals.filter(p => p && matchCategory(p.category, selectedCategory));
-  }
-
-  state.activeSosRequest = {
-    category: selectedCategory,
-    detail: detail || "Asistencia de urgencia requerida.",
-    candidates: candidates,
-    currentIndex: 0,
-    clientName: state.currentUser ? state.currentUser.name : "Cliente Arkantos",
-    clientEmail: state.currentUser ? state.currentUser.email : "guest@arkantos.com",
-    timer: null,
-    countdown: 15
-  };
-
-  const modal = document.getElementById('client-sos-searching-modal');
-  if (modal) {
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    try { lucide.createIcons(); } catch (e) {}
-  }
-
-  const statusLbl = document.getElementById('lbl-sos-searching-status');
-  if (statusLbl) {
-    statusLbl.innerText = `Conectando con la red de guardia de ${selectedCategory}...`;
-  }
-
-  window.triggerNextSosCandidate();
-};
 
 // --- EVENT LISTENERS GENERALES DEL CLIENTE ---
 function initClientEventListeners() {
@@ -4698,19 +3445,48 @@ function initClientEventListeners() {
     });
   }
 
+  const clientSosSelect = document.getElementById('client-sos-request-category');
   const btnClientSubmitSos = document.getElementById('btn-client-submit-sos');
+  if (clientSosSelect && btnClientSubmitSos) {
+    clientSosSelect.addEventListener('change', () => {
+      btnClientSubmitSos.disabled = (clientSosSelect.value === '');
+    });
+  }
+
   if (btnClientSubmitSos) {
-    btnClientSubmitSos.disabled = false;
-    btnClientSubmitSos.onclick = () => {
-      window.submitSosRequest();
-    };
+    btnClientSubmitSos.addEventListener('click', () => {
+      const selectedCategory = clientSosSelect.value;
+      const detail = document.getElementById('client-sos-request-detail').value.trim();
+      
+      // Filtrar profesionales de este rubro que estén en línea (activos)
+      const candidates = state.professionals.filter(p => p.active && matchCategory(p.category, selectedCategory));
+      
+      state.activeSosRequest = {
+        category: selectedCategory,
+        detail: detail || "Asistencia de urgencia requerida.",
+        candidates: candidates,
+        currentIndex: 0,
+        clientName: state.currentUser ? state.currentUser.name : "Cliente Arkantos",
+        clientEmail: state.currentUser ? state.currentUser.email : "guest@arkantos.com",
+        timer: null,
+        countdown: 15
+      };
+
+      const modal = document.getElementById('client-sos-searching-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+
+      triggerNextSosCandidate();
+    });
   }
 
   const btnCancelSosSearch = document.getElementById('btn-cancel-sos-search');
   if (btnCancelSosSearch) {
-    btnCancelSosSearch.onclick = () => {
-      window.endSosSearch(true);
-    };
+    btnCancelSosSearch.addEventListener('click', () => {
+      endSosSearch(true);
+    });
   }
 
   document.getElementById('btn-close-booking').addEventListener('click', closeBookingSheet);
@@ -4926,82 +3702,23 @@ function initClientEventListeners() {
     }
 
     booking.status = "Calificado";
-    
-    // Guardar propina recibida
-    const tip = state.pendingTipAmount || 0;
-    booking.tip = tip;
-
     saveToLocalStorage();
 
     reviewModal.classList.add('hidden');
     reviewModal.classList.remove('flex');
     reviewCommentInput.value = '';
 
-    if (tip > 0) {
-      showToast(
-        "⭐ ¡Calificado con Propina!",
-        `Calificaste a ${pro.name} y le enviaste $${tip.toLocaleString('es-AR')} de propina.`,
-        "success"
-      );
-    } else {
-      showToast(
-        "⭐ Calificación Registrada",
-        `Gracias por tu reseña para ${pro.name}. Se ha actualizado su reputación.`,
-        "success"
-      );
-    }
+    showToast(
+      "⭐ Calificación Registrada",
+      `Gracias por tu reseña para ${pro.name}. Se ha actualizado su reputación.`,
+      "success"
+    );
 
     renderProfessionals();
     renderClientBookings();
     updateDashboardMetrics();
     renderProCalendar();
   });
-
-state.pendingTipAmount = 0;
-
-window.selectTipAmount = (amount, btnElement) => {
-  state.pendingTipAmount = amount;
-
-  document.querySelectorAll('.btn-tip-opt').forEach(btn => {
-    btn.className = "btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-slate-950 border border-slate-850 text-slate-400 hover:text-white transition-all select-none cursor-pointer";
-  });
-
-  if (btnElement) {
-    btnElement.className = "btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-brand-gold-500 border border-brand-gold-500 text-slate-950 transition-all select-none cursor-pointer";
-  } else if (amount === 0) {
-    const firstBtn = document.querySelector('#tip-options-row button');
-    if (firstBtn) {
-      firstBtn.className = "btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-brand-gold-500 border border-brand-gold-500 text-slate-950 transition-all select-none cursor-pointer";
-    }
-  }
-
-  // Reset custom button text if resetting to default
-  if (amount === 0) {
-    const customBtn = document.getElementById('btn-custom-tip');
-    if (customBtn) customBtn.innerText = "Elegir otro monto...";
-  }
-};
-
-window.promptCustomTip = () => {
-  const customStr = prompt("Ingresa el monto de propina personalizado ($):");
-  if (!customStr) return;
-  const amount = parseInt(customStr.replace(/[^0-9]/g, ''));
-  if (isNaN(amount) || amount <= 0) {
-    alert("Por favor ingresa un monto válido.");
-    return;
-  }
-
-  state.pendingTipAmount = amount;
-  
-  document.querySelectorAll('.btn-tip-opt').forEach(btn => {
-    btn.className = "btn-tip-opt py-1.5 rounded-lg text-[9px] font-black bg-slate-950 border border-slate-850 text-slate-400 hover:text-white transition-all select-none cursor-pointer";
-  });
-
-  const customBtn = document.getElementById('btn-custom-tip');
-  if (customBtn) {
-    customBtn.innerText = `Propina elegida: +$${amount.toLocaleString('es-AR')} (Elegir otro)`;
-  }
-};
 
   // Oyentes de modal de perfil de profesional y verificación
   const btnCloseProProfileModal = document.getElementById('btn-close-pro-profile-modal');
@@ -5100,32 +3817,11 @@ function renderClientBookings() {
   container.innerHTML = '';
 
   if (!state.currentUser) return;
-  
-  if (!state.activeClientBookingFilter) {
-    state.activeClientBookingFilter = 'Pendiente';
-  }
-
-  const list = state.bookings.filter(b => {
-    const matchesUser = b.clientEmail && b.clientEmail.toLowerCase() === state.currentUser.email.toLowerCase();
-    if (!matchesUser) return false;
-
-    if (state.activeClientBookingFilter === 'Pendiente') {
-      return b.status === "Pendiente";
-    } else if (state.activeClientBookingFilter === 'Confirmado') {
-      return b.status === "Aceptado";
-    } else if (state.activeClientBookingFilter === 'Realizado') {
-      return b.status === "Finalizado" || b.status === "Calificado";
-    }
-    return true;
-  });
+  const list = state.bookings.filter(b => b.clientEmail && b.clientEmail.toLowerCase() === state.currentUser.email.toLowerCase());
 
   if (list.length === 0) {
-    let emptyText = "No tienes turnos pendientes.";
-    if (state.activeClientBookingFilter === 'Confirmado') emptyText = "No tienes turnos confirmados.";
-    else if (state.activeClientBookingFilter === 'Realizado') emptyText = "No tienes turnos realizados.";
-
     container.innerHTML = `
-      <div class="text-center text-xs text-slate-550 py-8 italic">${emptyText}</div>
+      <div class="text-center text-xs text-slate-550 py-8 italic">No has agendado servicios aún.</div>
     `;
     return;
   }
@@ -5185,111 +3881,39 @@ function renderClientBookings() {
   document.querySelectorAll('.btn-trigger-review').forEach(btn => {
     btn.addEventListener('click', () => {
       const bId = parseInt(btn.getAttribute('data-booking-id'));
-      openBookingReview(bId);
+      state.activeReviewBookingId = bId;
+
+      state.pendingQualityRating = 5;
+      state.pendingAcceptanceRating = 5;
+      document.querySelectorAll('#review-stars-quality .review-star-btn').forEach(b => {
+        b.className = "review-star-btn text-brand-gold-500 text-2xl";
+      });
+      document.querySelectorAll('#review-stars-acceptance .accept-star-btn').forEach(b => {
+        b.className = "accept-star-btn text-brand-gold-500 text-2xl";
+      });
+
+      const modal = document.getElementById('client-review-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
     });
   });
-}
-
-function runAdminSplashTransition(callback) {
-  const splash = document.getElementById('admin-splash-loader');
-  const bar = document.getElementById('admin-splash-bar');
-  const statusLbl = document.getElementById('admin-splash-status-lbl');
-  const adminScreen = document.getElementById('admin-screen');
-
-  if (!splash) {
-    if (adminScreen) adminScreen.classList.remove('hidden');
-    if (callback) callback();
-    return;
-  }
-
-  // Ocultar pantalla de la app mobile mientras carga la pantalla ejecutiva
-  if (adminScreen) adminScreen.classList.add('hidden');
-  splash.classList.remove('hidden');
-  splash.classList.add('flex');
-  splash.style.opacity = '1';
-  lucide.createIcons();
-
-  if (bar) bar.style.width = '0%';
-  if (statusLbl) {
-    statusLbl.innerHTML = `
-      Autenticando credenciales de dirección ejecutiva...<br>
-      <span class="text-slate-500 text-[10px] block mt-1">Por favor aguarde unos segundos mientras se carga el centro de mando...</span>
-    `;
-  }
-
-  setTimeout(() => {
-    if (bar) bar.style.width = '45%';
-    if (statusLbl) {
-      statusLbl.innerHTML = `
-        Cargando telemetría de red, métricas y base de datos...<br>
-        <span class="text-brand-gold-500/80 text-[10px] block mt-1">Verificando solicitudes de socios y expedientes de DNI...</span>
-      `;
-    }
-  }, 800);
-
-  setTimeout(() => {
-    if (bar) bar.style.width = '85%';
-    if (statusLbl) {
-      statusLbl.innerHTML = `
-        Sincronizando auditoría de chats en tiempo real y libro contable...<br>
-        <span class="text-emerald-400/80 text-[10px] block mt-1">Configuración ejecutiva finalizada con éxito.</span>
-      `;
-    }
-  }, 1700);
-
-  setTimeout(() => {
-    if (bar) bar.style.width = '100%';
-  }, 2400);
-
-  setTimeout(() => {
-    splash.style.opacity = '0';
-    setTimeout(() => {
-      splash.classList.add('hidden');
-      splash.classList.remove('flex');
-      if (adminScreen) adminScreen.classList.remove('hidden');
-      if (callback) callback();
-    }, 500);
-  }, 2700);
 }
 
 function switchView(view) {
   state.activeView = view;
   const clientScreen = document.getElementById('client-screen');
   const proScreen = document.getElementById('professional-screen');
-  const adminScreen = document.getElementById('admin-screen');
   const clientNavBar = document.getElementById('client-nav-bar');
-  const splashLoader = document.getElementById('admin-splash-loader');
-
-  const deviceContainer = document.getElementById('device-container');
 
   if (view === 'client') {
     clientScreen.classList.remove('hidden');
     proScreen.classList.add('hidden');
-    if (adminScreen) adminScreen.classList.add('hidden');
-    if (splashLoader) splashLoader.classList.add('hidden');
-    if (deviceContainer) deviceContainer.classList.remove('hidden');
     clientNavBar.classList.remove('hidden');
     
     switchClientSubview('explore');
-  } else if (view === 'admin') {
-    clientScreen.classList.add('hidden');
-    proScreen.classList.add('hidden');
-    if (deviceContainer) deviceContainer.classList.add('hidden');
-    clientNavBar.classList.add('hidden');
-    
-    runAdminSplashTransition(() => {
-      try {
-        initAdminPanel();
-      } catch (e) {
-        console.error("Error al inicializar el panel de admin:", e);
-      }
-    });
   } else {
     clientScreen.classList.add('hidden');
     proScreen.classList.remove('hidden');
-    if (adminScreen) adminScreen.classList.add('hidden');
-    if (splashLoader) splashLoader.classList.add('hidden');
-    if (deviceContainer) deviceContainer.classList.remove('hidden');
     clientNavBar.classList.add('hidden');
     
     document.querySelectorAll('.pro-nav-tab').forEach(t => {
@@ -5297,13 +3921,10 @@ function switchView(view) {
       t.classList.add('text-slate-500');
     });
     const firstTab = document.querySelector('.pro-nav-tab[data-view="dashboard"]');
-    if (firstTab) {
-      firstTab.classList.remove('text-slate-500');
-      firstTab.classList.add('text-brand-gold-500', 'active');
-    }
+    firstTab.classList.remove('text-slate-500');
+    firstTab.classList.add('text-brand-gold-500', 'active');
     
     switchProSubView('dashboard');
-    syncProActivityUI();
   }
   updateChatBadges();
   checkForUnratedBookings();
@@ -5721,35 +4342,21 @@ window.openProProfileModal = function(proId) {
     } else {
       portfolio.forEach(work => {
         const card = document.createElement('div');
-        card.className = "bg-slate-900/40 border border-slate-850/60 rounded-xl overflow-hidden flex flex-col cursor-pointer hover:border-brand-gold-500/60 transition-all group shadow-md";
+        card.className = "bg-slate-900/40 border border-slate-850/60 rounded-xl overflow-hidden flex flex-col";
         
         const mediaHTML = work.img 
-          ? `<div class="relative overflow-hidden w-full h-24 bg-slate-950">
-               <img src="${work.img}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-               <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 text-white font-extrabold text-[9px]">
-                 <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-brand-gold-500"></i> Ver Ampliado
-               </div>
-             </div>`
-          : `<div class="w-full h-24 bg-gradient-to-br from-slate-900 to-slate-950 flex flex-col items-center justify-center gap-1 border-b border-slate-900 text-brand-gold-500/40">
-               <i data-lucide="briefcase" class="w-4 h-4 text-brand-gold-500/70"></i>
+          ? `<img src="${work.img}" class="w-full h-20 object-cover border-b border-slate-900">`
+          : `<div class="w-full h-20 bg-gradient-to-br from-slate-900 to-slate-950 flex flex-col items-center justify-center gap-1 border-b border-slate-900 text-brand-gold-500/40">
+               <i data-lucide="briefcase" class="w-4 h-4"></i>
              </div>`;
              
         card.innerHTML = `
           ${mediaHTML}
           <div class="p-2 flex flex-col gap-0.5">
-            <h4 class="font-bold text-[10px] text-white truncate group-hover:text-brand-gold-500 transition-colors">${work.title}</h4>
+            <h4 class="font-bold text-[10px] text-white truncate">${work.title}</h4>
             <p class="text-[8.5px] text-slate-400 line-clamp-2 leading-snug">${work.desc}</p>
           </div>
         `;
-
-        card.onclick = () => {
-          if (work.img) {
-            window.openImageLightbox(work.img, `${work.title} - ${pro.name}`);
-          } else {
-            showToast("📸 Trabajo Realizado", `${work.title}: ${work.desc}`, "info");
-          }
-        };
-
         gallery.appendChild(card);
       });
     }
@@ -5968,25 +4575,13 @@ function openBookingReview(bId) {
   state.activeReviewBookingId = parseInt(bId);
   state.pendingQualityRating = 5;
   state.pendingAcceptanceRating = 5;
-  state.pendingTipAmount = 0; // Reset tip amount
-
+  
   document.querySelectorAll('#review-stars-quality .review-star-btn').forEach(b => {
-    b.className = "review-star-btn text-brand-gold-500 text-2xl cursor-pointer";
+    b.className = "review-star-btn text-brand-gold-500 text-2xl";
   });
-
-  // Reset tip options visually
-  window.selectTipAmount(0, null);
-
-  const booking = state.bookings.find(b => b.id === parseInt(bId));
-  const tipContainer = document.getElementById('review-tip-container');
-  if (tipContainer) {
-    // Show tip section if payment method is card or undefined (default/test bookings)
-    if (booking && booking.paymentMethod === 'cash') {
-      tipContainer.classList.add('hidden');
-    } else {
-      tipContainer.classList.remove('hidden');
-    }
-  }
+  document.querySelectorAll('#review-stars-acceptance .accept-star-btn').forEach(b => {
+    b.className = "accept-star-btn text-brand-gold-500 text-2xl";
+  });
 
   const modal = document.getElementById('client-review-modal');
   if (modal) {
@@ -6089,31 +4684,14 @@ function renderClientSosList() {
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-2 mt-0.5 text-[11px]">
-        <div class="bg-slate-950/40 border border-slate-850/50 p-2 rounded-xl flex items-center gap-2">
-          <div class="w-7 h-7 bg-brand-gold-500/10 rounded-lg flex items-center justify-center text-brand-gold-500 shrink-0">
-            <i data-lucide="star" class="w-4 h-4 fill-brand-gold-500"></i>
-          </div>
-          <div class="flex flex-col">
-            <span class="text-[9px] text-slate-550 font-semibold uppercase">Calificación</span>
-            <span class="text-white font-bold">${pro.rating.toFixed(1)} (${pro.reviewsCount})</span>
-          </div>
-        </div>
-        <div class="bg-slate-950/40 border border-slate-850/50 p-2 rounded-xl flex items-center gap-2">
-          <div class="w-7 h-7 bg-green-500/10 rounded-lg flex items-center justify-center text-green-400 shrink-0">
-            <i data-lucide="wallet" class="w-4 h-4"></i>
-          </div>
-          <div class="flex flex-col">
-            <span class="text-[9px] text-slate-550 font-semibold uppercase">Consulta Base</span>
-            <span class="text-white font-bold">$${pro.price.toLocaleString('es-AR')}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-1">
-        <button class="btn-chat-with-pro w-full bg-slate-950 border border-slate-850 hover:border-brand-gold-500/40 hover:text-brand-gold-500 text-slate-200 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95" data-pro-id="${pro.id}">
+      <div class="grid grid-cols-2 gap-2 mt-1">
+        <button onclick="window.instantCallProvider('${pro.name}')" class="bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-md shadow-red-600/10">
+          <i data-lucide="phone" class="w-3.5 h-3.5"></i>
+          <span>Llamar SOS</span>
+        </button>
+        <button class="btn-chat-with-pro bg-slate-850 border border-slate-800 text-slate-200 hover:border-brand-gold-500/40 hover:text-brand-gold-500 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5" data-pro-id="${pro.id}">
           <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
-          <span>Chatear de Coordinación</span>
+          <span>Chatear</span>
         </button>
       </div>
     `;
@@ -6265,19 +4843,124 @@ window.respondToCounterOffer = (chatId, msgIndex, response) => {
 };
 
 function syncAgreedPriceToBookings(chat, price) {
-  const pro = state.professionals.find(p => p.id === chat.proId);
-  const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
-  const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
+  const emailLower = chat.clientEmail.toLowerCase();
+  
+  // Buscar reserva existente para el profesional y el cliente
+  let booking = state.bookings.find(b => 
+    b.proId === chat.proId && 
+    b.clientEmail && 
+    b.clientEmail.toLowerCase() === emailLower && 
+    b.status !== "Rechazado"
+  );
 
-  state.selectedBooking = {
-    proId: chat.proId,
-    day: dateStr,
-    time: timeStr,
-    agreedPrice: price
-  };
+  if (booking) {
+    booking.price = price;
+    booking.total = price;
+    booking.status = "Finalizado";
+  } else {
+    const pro = state.professionals.find(p => p.id === chat.proId);
+    booking = {
+      id: Date.now(),
+      proId: chat.proId,
+      proName: chat.proName,
+      clientEmail: chat.clientEmail,
+      clientName: chat.clientName,
+      category: pro ? pro.category : "Servicios",
+      price: price,
+      total: price,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+      status: "Finalizado"
+    };
+    state.bookings.push(booking);
+  }
 
-  window.openPaymentMethodModal();
+  saveToLocalStorage();
+  updateDashboardMetrics();
+  renderProCalendar();
+  renderClientBookings();
+}
+
+function triggerNextSosCandidate() {
+  const req = state.activeSosRequest;
+  if (!req) return;
+  
+  if (req.currentIndex >= req.candidates.length) {
+    // Si no hay candidatos humanos activos, simulamos que responde un BOT de guardia
+    // después de 5 segundos para que la demo fluya sola si no cambian de portal.
+    document.getElementById('lbl-sos-searching-status').innerText = "Buscando en red de respaldo de guardia...";
+    
+    // Crear un profesional bot para la simulación
+    const mockBotPro = {
+      id: 9999,
+      name: `Guardia de ${req.category} (Respaldo)`,
+      avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&q=80&w=80&h=80",
+      category: req.category,
+      email: `guardia-${req.category.toLowerCase()}@arkantos.com`
+    };
+
+    req.timer = setTimeout(() => {
+      // Auto-aceptar la emergencia usando el bot
+      state.receivedEmergency = {
+        proId: mockBotPro.id,
+        clientName: req.clientName,
+        clientEmail: req.clientEmail,
+        detail: req.detail,
+        category: req.category
+      };
+      
+      // Crear un profesional temporal en la lista global si no existe para que el chat funcione
+      if (!state.professionals.find(p => p.id === mockBotPro.id)) {
+        state.professionals.push({
+          id: mockBotPro.id,
+          name: mockBotPro.name,
+          avatar: mockBotPro.avatar,
+          category: mockBotPro.category,
+          email: mockBotPro.email,
+          specialty: "Guardia de Emergencia 24hs",
+          location: { lat: -27.3670, lng: -55.8960, neighborhood: "Centro" },
+          price: 15000,
+          rating: 4.9,
+          reviewsCount: 42,
+          positiveReviewsPercent: 98,
+          acceptancePercent: 100,
+          verified: true,
+          active: true
+        });
+      }
+      
+      acceptEmergencyRequest();
+    }, 5000);
+    return;
+  }
+
+  const candidate = req.candidates[req.currentIndex];
+  document.getElementById('lbl-sos-searching-status').innerText = `Notificando a: ${candidate.name} (Tasa Acep: ${candidate.acceptancePercent}%)...`;
+
+  // Animación del progreso de búsqueda de este candidato
+  const progBar = document.getElementById('bar-sos-searching-progress');
+  if (progBar) {
+    progBar.style.transition = 'none';
+    progBar.style.width = '100%';
+    setTimeout(() => {
+      progBar.style.transition = 'width 15s linear';
+      progBar.style.width = '0%';
+    }, 50);
+  }
+
+  sendEmergencyToPro(candidate, req);
+
+  // Programar expiración a los 15s
+  req.countdown = 15;
+  if (req.timer) clearInterval(req.timer);
+  
+  req.timer = setInterval(() => {
+    req.countdown--;
+    if (req.countdown <= 0) {
+      clearInterval(req.timer);
+      rejectEmergencyRequest();
+    }
+  }, 1000);
 }
 
 function sendEmergencyToPro(pro, req) {
@@ -6478,1110 +5161,3 @@ function endSosSearch(cancelled, message) {
     alert(message);
   }
 }
-
-function checkBookingReminders() {
-  if (!state.currentUser) return;
-  const now = new Date();
-
-  let stateChanged = false;
-  state.bookings.forEach(b => {
-    // Solo turnos del cliente actual y que estén Aceptados (Confirmados) o Pendientes y no notificados
-    if (b.clientEmail && b.clientEmail.toLowerCase() === state.currentUser.email.toLowerCase() && 
-        (b.status === "Aceptado" || b.status === "Pendiente") && !b.reminderSent) {
-      
-      try {
-        // B.date puede tener el formato "Sábado 18/07/2026" o "18/07/2026"
-        let cleanDate = b.date;
-        if (cleanDate.includes(' ')) {
-          const spaceParts = cleanDate.split(' ');
-          cleanDate = spaceParts[spaceParts.length - 1]; // Toma la fecha DD/MM/YYYY
-        }
-        
-        const parts = cleanDate.split('/'); // DD/MM/YYYY
-        const dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
-        const scheduledTime = new Date(`${dateStr}T${b.time}:00`);
-
-        if (isNaN(scheduledTime.getTime())) return;
-
-        const diffMs = scheduledTime - now;
-        const diffHours = diffMs / (1000 * 60 * 60);
-
-        // Si faltan entre 0 y 3 horas para el turno
-        if (diffHours > 0 && diffHours <= 3) {
-          b.reminderSent = true;
-          stateChanged = true;
-          
-          // Mostrar notificación Toast
-          showToast(
-            "⏰ Recordatorio de Turno", 
-            `Tienes un turno agendado dentro de poco con: ${b.proName} (${b.category})`, 
-            "warning"
-          );
-        }
-      } catch (e) {
-        console.error("Error al procesar recordatorio de reserva:", e);
-      }
-    }
-  });
-
-  if (stateChanged) {
-    saveToLocalStorage();
-  }
-}
-
-// Ejecutar cada 10 segundos
-setInterval(checkBookingReminders, 10000);
-
-// Ejecutar al cargar la app para atrapar turnos inmediatos
-setTimeout(checkBookingReminders, 2000);
-
-window.setClientBookingFilter = (filterType) => {
-  state.activeClientBookingFilter = filterType;
-  
-  const btnPendiente = document.getElementById('btn-filter-booking-pendiente');
-  const btnConfirmado = document.getElementById('btn-filter-booking-confirmado');
-  const btnRealizado = document.getElementById('btn-filter-booking-realizado');
-
-  if (btnPendiente && btnConfirmado && btnRealizado) {
-    [btnPendiente, btnConfirmado, btnRealizado].forEach(btn => {
-      btn.className = "flex-1 text-center py-2 rounded-lg text-[10px] font-bold uppercase transition tracking-wider text-slate-400 hover:text-white";
-    });
-
-    let activeBtn;
-    if (filterType === 'Pendiente') activeBtn = btnPendiente;
-    else if (filterType === 'Confirmado') activeBtn = btnConfirmado;
-    else if (filterType === 'Realizado') activeBtn = btnRealizado;
-
-    if (activeBtn) {
-      activeBtn.className = "flex-1 text-center py-2 rounded-lg text-[10px] font-bold uppercase transition tracking-wider text-slate-955 bg-brand-gold-500 shadow-md";
-    }
-  }
-
-  renderClientBookings();
-};
-
-function syncProActivityUI() {
-  const pro = getCurrentPro();
-  if (!pro) return;
-
-  const active = pro.active;
-
-  // Actualizar interruptor si existe
-  const activityToggle = document.getElementById('pro-activity-toggle');
-  if (activityToggle) activityToggle.checked = active;
-
-  // Elementos de la interfaz de actividad
-  const dashDot = document.getElementById('dash-status-dot');
-  const dashLabel = document.getElementById('dash-status-label');
-  const dashBorder = document.getElementById('dash-status-indicator-border');
-
-  const chatPulseDot = document.getElementById('chat-pulse-dot');
-  const chatStaticDot = document.getElementById('chat-static-dot');
-  const chatStatusText = document.getElementById('chat-activity-status-text');
-
-  const headerBadge = document.getElementById('pro-status-header-badge');
-  const btnRayoConnect = document.getElementById('btn-rayo-connect');
-  const rayoPulseBg = document.getElementById('rayo-pulse-bg');
-
-  if (active) {
-    if (rayoPulseBg) rayoPulseBg.classList.remove('hidden');
-    if (btnRayoConnect) btnRayoConnect.classList.add('bg-red-700');
-
-    if (chatPulseDot) chatPulseDot.classList.remove('hidden');
-    if (chatStaticDot) chatStaticDot.className = "relative inline-flex rounded-full h-3 w-3 bg-brand-gold-500";
-    if (chatStatusText) {
-      chatStatusText.innerText = "En Línea (Disponible)";
-      chatStatusText.className = "text-[9px] text-brand-gold-500 font-extrabold uppercase";
-    }
-
-    if (dashDot) dashDot.className = "w-2.5 h-2.5 rounded-full bg-brand-gold-500 animate-pulse";
-    if (dashLabel) {
-      dashLabel.innerText = "En Línea";
-      dashLabel.className = "text-[9px] text-brand-gold-500 font-extrabold uppercase";
-    }
-    if (dashBorder) dashBorder.className = "absolute top-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-950/80 border border-brand-gold-500/30";
-    
-    if (headerBadge) {
-      headerBadge.classList.remove('hidden');
-      headerBadge.classList.add('inline-flex');
-    }
-  } else {
-    if (rayoPulseBg) rayoPulseBg.classList.add('hidden');
-    if (btnRayoConnect) btnRayoConnect.classList.remove('bg-red-700');
-
-    if (chatPulseDot) chatPulseDot.classList.add('hidden');
-    if (chatStaticDot) chatStaticDot.className = "relative inline-flex rounded-full h-3 w-3 bg-slate-655";
-    if (chatStatusText) {
-      chatStatusText.innerText = "Desconectado (Fuera de línea)";
-      chatStatusText.className = "text-[9px] text-slate-500 font-semibold uppercase";
-    }
-
-    if (dashDot) dashDot.className = "w-2.5 h-2.5 rounded-full bg-slate-655";
-    if (dashLabel) {
-      dashLabel.innerText = "Desconectado";
-      dashLabel.className = "text-[9px] text-slate-455 font-bold uppercase";
-    }
-    if (dashBorder) dashBorder.className = "absolute top-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-950/80 border border-slate-800";
-
-    if (headerBadge) {
-      headerBadge.classList.add('hidden');
-      headerBadge.classList.remove('inline-flex');
-    }
-  }
-}
-
-// --- PORTAL DE ADMINISTRACIÓN (MASTER COMMAND COCKPIT) LOGIC ---
-let activeAdminDeskUserFilter = 'clients'; // 'clients' o 'pros'
-let activeAdminDeskSearchTerm = '';
-let activeAdminDeskChatSearchTerm = '';
-let adminDeskLogTimer = null;
-
-window.toggleAdminMobileMenu = (show) => {
-  const sidebar = document.getElementById('admin-sidebar');
-  const backdrop = document.getElementById('admin-mobile-backdrop');
-  if (!sidebar) return;
-
-  if (show === undefined) {
-    show = sidebar.classList.contains('-translate-x-full');
-  }
-
-  if (show) {
-    sidebar.classList.remove('-translate-x-full');
-    if (backdrop) backdrop.classList.remove('hidden');
-  } else {
-    sidebar.classList.add('-translate-x-full');
-    if (backdrop) backdrop.classList.add('hidden');
-  }
-};
-
-window.switchAdminSubview = (view) => {
-  if (window.toggleAdminMobileMenu) {
-    window.toggleAdminMobileMenu(false);
-  }
-
-  document.querySelectorAll('.admin-content-view').forEach(v => {
-    v.classList.add('hidden');
-  });
-
-  const tabOverview = document.getElementById('btn-admin-desk-tab-overview');
-  const tabApprovals = document.getElementById('btn-admin-desk-tab-approvals');
-  const tabUsers = document.getElementById('btn-admin-desk-tab-users');
-  const tabChats = document.getElementById('btn-admin-desk-tab-chats');
-  const tabFinances = document.getElementById('btn-admin-desk-tab-finances');
-
-  // Reset tab classes to inactive styling
-  const inactiveClass = "w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white hover:bg-slate-850";
-  [tabOverview, tabApprovals, tabUsers, tabChats, tabFinances].forEach(t => {
-    if (t) t.className = inactiveClass;
-  });
-
-  // Activate selected subview and update tab styling
-  let activeTab;
-  if (view === 'overview') {
-    const el = document.getElementById('admin-desk-view-overview');
-    if (el) el.classList.remove('hidden');
-    activeTab = tabOverview;
-    renderAdminOverview();
-  } else if (view === 'approvals') {
-    const el = document.getElementById('admin-desk-view-approvals');
-    if (el) el.classList.remove('hidden');
-    activeTab = tabApprovals;
-    renderAdminApprovals();
-  } else if (view === 'users') {
-    const el = document.getElementById('admin-desk-view-users');
-    if (el) el.classList.remove('hidden');
-    activeTab = tabUsers;
-    renderAdminUsers();
-  } else if (view === 'chats') {
-    const el = document.getElementById('admin-desk-view-chats');
-    if (el) el.classList.remove('hidden');
-    activeTab = tabChats;
-    renderAdminDeskChats();
-  } else if (view === 'finances') {
-    const el = document.getElementById('admin-desk-view-finances');
-    if (el) el.classList.remove('hidden');
-    activeTab = tabFinances;
-    renderAdminFinances();
-  }
-
-  if (activeTab) {
-    activeTab.className = "w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition text-slate-955 bg-brand-gold-500 shadow-lg shadow-brand-gold-500/10";
-  }
-};
-
-function initAdminPanel() {
-  // Bind tab click redirects (already set inline in HTML using switchAdminSubview)
-  window.switchAdminSubview('overview');
-
-  // Clock telemetry updater
-  const clockEl = document.getElementById('admin-clock-telemetry');
-  if (clockEl) {
-    const updateClock = () => {
-      const now = new Date();
-      clockEl.innerText = now.toTimeString().split(' ')[0];
-    };
-    updateClock();
-    setInterval(updateClock, 1000);
-  }
-
-  // Live log generator daemon
-  const logTerminal = document.getElementById('admin-desk-logs-terminal');
-  if (logTerminal && !adminDeskLogTimer) {
-    const sampleLogs = [
-      "Conexión entrante desde la dirección IP 192.168.1.45 (Cliente).",
-      "El profesional 'Test Provider' actualizó su tarifa de consulta base a $18.000.",
-      "Daemon de recordatorios de turnos escaneó 12 reservas activas (0 notificaciones enviadas).",
-      "Se registró una nueva conversación ID: #chat-17849202.",
-      "El usuario 'test@client.com' solicitó asistencia de grúa SOS.",
-      "Inspección de API completada: latencia media de respuesta 45ms.",
-      "Guardado automático de base de datos local en localStorage finalizado."
-    ];
-    adminDeskLogTimer = setInterval(() => {
-      if (state.activeView !== 'admin') return;
-      const logLine = document.createElement('div');
-      const now = new Date();
-      const timeStr = now.toTimeString().split(' ')[0];
-      const randomLog = sampleLogs[Math.floor(Math.random() * sampleLogs.length)];
-      logLine.innerText = `[${timeStr}] ${randomLog}`;
-      logTerminal.appendChild(logLine);
-      logTerminal.scrollTop = logTerminal.scrollHeight;
-
-      // Limitar cantidad de líneas en consola a 50
-      if (logTerminal.children.length > 50) {
-        logTerminal.removeChild(logTerminal.firstChild);
-      }
-    }, 8000);
-  }
-
-  // Bind close DNI approval modal
-  const btnCloseModal = document.getElementById('btn-close-admin-approval-modal');
-  const modal = document.getElementById('admin-approval-detail-modal');
-  if (btnCloseModal && modal) {
-    btnCloseModal.onclick = () => {
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-    };
-  }
-
-  // Bind logout
-  const btnAdminLogout = document.getElementById('btn-admin-logout');
-  if (btnAdminLogout) {
-    btnAdminLogout.onclick = () => {
-      logoutUser();
-      const authScreen = document.getElementById('auth-screen');
-      if (authScreen) authScreen.classList.remove('hidden');
-      const adminScreen = document.getElementById('admin-screen');
-      if (adminScreen) adminScreen.classList.add('hidden');
-      const deviceContainer = document.getElementById('device-container');
-      if (deviceContainer) deviceContainer.classList.remove('hidden');
-      showToast("Sesión Cerrada", "Has salido del Panel de Administración.", "info");
-    };
-  }
-
-  // Bind approve pro button inside DNI modal
-  const btnApprove = document.getElementById('btn-admin-approve-pro');
-  if (btnApprove) {
-    btnApprove.onclick = () => {
-      const proId = state.activeAdminVerificationProId;
-      if (proId) {
-        const pro = state.professionals.find(p => p.id === proId);
-        if (pro) {
-          pro.verified = true;
-          pro.verificationStatus = 'approved';
-          saveToLocalStorage();
-          showToast("🛡️ Socio Aprobado", `El prestador ${pro.name} fue verificado con éxito.`, "success");
-          
-          if (modal) {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-          }
-          
-          renderAdminApprovals();
-          updateAdminBadgeCount();
-        }
-      }
-    };
-  }
-
-  // Bind rejection reason modal controls
-  const rejectionModal = document.getElementById('admin-rejection-reason-modal');
-  const btnCloseRejectionModal = document.getElementById('btn-close-admin-rejection-modal');
-  const btnCancelRejection = document.getElementById('btn-cancel-admin-rejection');
-  const btnConfirmRejection = document.getElementById('btn-confirm-admin-rejection');
-  const rejectionReasonInput = document.getElementById('admin-rejection-reason-text');
-
-  const closeRejectionModal = () => {
-    if (rejectionModal) {
-      rejectionModal.classList.add('hidden');
-      rejectionModal.classList.remove('flex');
-    }
-  };
-
-  if (btnCloseRejectionModal) btnCloseRejectionModal.onclick = closeRejectionModal;
-  if (btnCancelRejection) btnCancelRejection.onclick = closeRejectionModal;
-
-  document.querySelectorAll('.btn-quick-rejection-reason').forEach(btn => {
-    btn.onclick = () => {
-      const reasonText = btn.innerText.replace(/^[^\w\sáéíóúÁÉÍÓÚñÑ]+/, '').trim();
-      if (rejectionReasonInput) rejectionReasonInput.value = reasonText;
-    };
-  });
-
-  // Bind reject pro button inside DNI modal
-  const btnReject = document.getElementById('btn-admin-reject-pro');
-  if (btnReject) {
-    btnReject.onclick = () => {
-      if (rejectionReasonInput) rejectionReasonInput.value = '';
-      if (rejectionModal) {
-        rejectionModal.classList.remove('hidden');
-        rejectionModal.classList.add('flex');
-        lucide.createIcons();
-      }
-    };
-  }
-
-  if (btnConfirmRejection) {
-    btnConfirmRejection.onclick = () => {
-      const proId = state.activeAdminVerificationProId;
-      if (!proId) return;
-      const pro = state.professionals.find(p => p.id === proId);
-      if (!pro) return;
-
-      const reason = (rejectionReasonInput && rejectionReasonInput.value.trim())
-        ? rejectionReasonInput.value.trim()
-        : "La documentación adjunta de DNI es ilegible o no cumple con los requisitos.";
-
-      pro.verified = false;
-      pro.verificationStatus = 'rejected';
-      pro.rejectionReason = reason;
-
-      saveToLocalStorage();
-      showToast("🔴 Solicitud Rechazada", `Se notificó a ${pro.name}: "${reason}".`, "warning");
-
-      closeRejectionModal();
-      if (modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-      }
-
-      renderAdminApprovals();
-      updateAdminBadgeCount();
-    };
-  }
-
-  // Dossier action bindings (for profiles tab)
-  const btnDossierVerify = document.getElementById('btn-admin-dossier-action-verify');
-  if (btnDossierVerify) {
-    btnDossierVerify.onclick = () => {
-      const pId = state.activeAdminDeskProfileId;
-      const isPro = state.activeAdminDeskProfileIsPro;
-      if (pId && isPro) {
-        const pro = state.professionals.find(p => p.id === pId);
-        if (pro) {
-          pro.verified = !pro.verified;
-          pro.verificationStatus = pro.verified ? 'approved' : 'unverified';
-          saveToLocalStorage();
-          showToast("Badge Modificado", `Estado de verificado para ${pro.name} cambiado.`, "info");
-          selectAdminDeskProfile(pId, true);
-        }
-      }
-    };
-  }
-
-  const btnDossierBan = document.getElementById('btn-admin-dossier-action-ban');
-  if (btnDossierBan) {
-    btnDossierBan.onclick = () => {
-      const pId = state.activeAdminDeskProfileId;
-      const isPro = state.activeAdminDeskProfileIsPro;
-      if (pId) {
-        let userObj;
-        if (isPro) {
-          const pro = state.professionals.find(p => p.id === pId);
-          if (pro) {
-            userObj = state.users.find(u => u.email.toLowerCase() === pro.email.toLowerCase());
-          }
-        } else {
-          userObj = state.users.find(u => u.id === pId || (u.email && u.email.toLowerCase() === String(pId).toLowerCase()));
-        }
-
-        if (userObj) {
-          userObj.banned = !userObj.banned;
-          saveToLocalStorage();
-          showToast(
-            userObj.banned ? "🚫 Cuenta Suspendida" : "✅ Cuenta Activada",
-            `El usuario ${userObj.name} ahora está ${userObj.banned ? 'inhabilitado' : 'habilitado'}.`,
-            userObj.banned ? "warning" : "success"
-          );
-          selectAdminDeskProfile(pId, isPro);
-        }
-      }
-    };
-  }
-
-  const btnDossierCoords = document.getElementById('btn-admin-dossier-action-edit-coords');
-  if (btnDossierCoords) {
-    btnDossierCoords.onclick = () => {
-      const pId = state.activeAdminDeskProfileId;
-      const isPro = state.activeAdminDeskProfileIsPro;
-      if (pId && isPro) {
-        const pro = state.professionals.find(p => p.id === pId);
-        if (pro) {
-          const coordsStr = prompt(`Ingresa las nuevas coordenadas para ${pro.name} en formato lat,lng:`, `${pro.location.lat},${pro.location.lng}`);
-          if (coordsStr) {
-            const parts = coordsStr.split(',');
-            const lat = parseFloat(parts[0]);
-            const lng = parseFloat(parts[1]);
-            if (!isNaN(lat) && !isNaN(lng)) {
-              pro.location.lat = lat;
-              pro.location.lng = lng;
-              saveToLocalStorage();
-              showToast("📍 Coordenadas Actualizadas", "La ubicación del socio ha sido editada.", "success");
-              selectAdminDeskProfile(pId, true);
-            } else {
-              alert("Coordenadas inválidas.");
-            }
-          }
-        }
-      }
-    };
-  }
-
-  updateAdminBadgeCount();
-}
-
-function updateAdminBadgeCount() {
-  const pendingCount = state.professionals.filter(p => p.verificationStatus === 'pending').length;
-  const badge = document.getElementById('admin-desk-approvals-badge');
-  if (badge) {
-    if (pendingCount > 0) {
-      badge.innerText = pendingCount;
-      badge.classList.remove('hidden');
-    } else {
-      badge.classList.add('hidden');
-    }
-  }
-}
-
-function renderAdminOverview() {
-  const lblPros = document.getElementById('lbl-admin-desk-pros');
-  const lblProsActive = document.getElementById('lbl-admin-desk-pros-active');
-  const lblClients = document.getElementById('lbl-admin-desk-clients');
-  const lblBookings = document.getElementById('lbl-admin-desk-bookings');
-  const lblBookingsDone = document.getElementById('lbl-admin-desk-bookings-done');
-  const lblEarnings = document.getElementById('lbl-admin-desk-earnings');
-  const lblDebt = document.getElementById('lbl-admin-desk-debt');
-
-  const totalPros = state.professionals.length;
-  const activePros = state.professionals.filter(p => p.active).length;
-  const totalClients = state.users.filter(u => u.role === 'client').length;
-  const totalBookings = state.bookings.length;
-  const doneBookings = state.bookings.filter(b => b.status === 'Finalizado' || b.status === 'Calificado');
-
-  const totalEarnedCommissions = doneBookings.reduce((sum, b) => sum + Math.round(b.price * 0.15), 0);
-  const totalDebt = totalEarnedCommissions;
-
-  if (lblPros) lblPros.innerText = totalPros;
-  if (lblProsActive) lblProsActive.innerText = `${activePros} activos en el radar`;
-  if (lblClients) lblClients.innerText = totalClients;
-  if (lblBookings) lblBookings.innerText = totalBookings;
-  if (lblBookingsDone) lblBookingsDone.innerText = `${doneBookings.length} servicios completados`;
-  if (lblEarnings) lblEarnings.innerText = `$${totalEarnedCommissions.toLocaleString('es-AR')}`;
-  if (lblDebt) lblDebt.innerText = `-$${totalDebt.toLocaleString('es-AR')} cobros pendientes`;
-  
-  updateAdminBadgeCount();
-}
-
-function renderAdminApprovals() {
-  const container = document.getElementById('admin-desk-approvals-list');
-  if (!container) return;
-  container.innerHTML = '';
-
-  const pendingPros = state.professionals.filter(p => p.verificationStatus === 'pending');
-
-  if (pendingPros.length === 0) {
-    container.innerHTML = `
-      <div class="col-span-3 text-center text-xs text-slate-550 py-16 italic">
-        No hay solicitudes de aprobación pendientes en el sistema.
-      </div>
-    `;
-    return;
-  }
-
-  pendingPros.forEach(pro => {
-    const card = document.createElement('div');
-    card.className = "bg-slate-900 border border-slate-850 rounded-2xl p-4 flex flex-col gap-3 shadow-md justify-between";
-
-    card.innerHTML = `
-      <div class="flex items-center gap-3">
-        <img src="${pro.avatar}" class="w-10 h-10 rounded-full object-cover border border-slate-700 bg-slate-950">
-        <div class="flex-1 min-w-0">
-          <h4 class="font-extrabold text-xs text-white truncate">${pro.name}</h4>
-          <span class="text-[9px] text-brand-gold-500 uppercase block font-bold truncate">${pro.category}</span>
-        </div>
-      </div>
-      
-      <div class="bg-slate-950/40 p-2.5 rounded-lg border border-slate-850 text-[10px] space-y-1">
-        <div><span class="text-slate-500 font-bold uppercase text-[8px]">DNI:</span> <span class="text-slate-200 font-semibold">${pro.dniNumber || 'Faltante'}</span></div>
-        <div><span class="text-slate-500 font-bold uppercase text-[8px]">Teléfono:</span> <span class="text-slate-200 font-semibold">${pro.phone || 'Sin tel'}</span></div>
-      </div>
-
-      <button class="w-full bg-brand-gold-500 hover:bg-brand-gold-600 text-slate-950 font-bold py-2 rounded-xl text-[10px] transition active:scale-95 btn-admin-view-pro-approval" data-pro-id="${pro.id}">
-        Revisar Solicitud DNI
-      </button>
-    `;
-    container.appendChild(card);
-  });
-
-  document.querySelectorAll('.btn-admin-view-pro-approval').forEach(btn => {
-    btn.onclick = () => {
-      const proId = parseInt(btn.getAttribute('data-pro-id'));
-      openAdminApprovalModal(proId);
-    };
-  });
-}
-
-window.openImageLightbox = (url, title = "Documento Ampliado") => {
-  if (!url || url.length < 10) return;
-  const modal = document.getElementById('image-lightbox-modal');
-  const imgTarget = document.getElementById('lightbox-image-target');
-  const titleEl = document.getElementById('lightbox-title-text');
-
-  if (imgTarget) imgTarget.src = url;
-  if (titleEl) titleEl.innerText = title;
-
-  if (modal) {
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    lucide.createIcons();
-  }
-};
-
-function initLightboxHandlers() {
-  const modal = document.getElementById('image-lightbox-modal');
-  const btnClose = document.getElementById('btn-close-lightbox');
-
-  if (btnClose && modal) {
-    btnClose.onclick = () => {
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-    };
-  }
-
-  if (modal) {
-    modal.onclick = (e) => {
-      if (e.target === modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-      }
-    };
-  }
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-    }
-  });
-}
-document.addEventListener('DOMContentLoaded', initLightboxHandlers);
-initLightboxHandlers();
-
-function openAdminApprovalModal(proId) {
-  const pro = state.professionals.find(p => p.id === proId);
-  if (!pro) return;
-
-  state.activeAdminVerificationProId = proId;
-
-  document.getElementById('admin-modal-pro-name').innerText = pro.name;
-  document.getElementById('admin-modal-pro-dni').innerText = pro.dniNumber || "Sin especificar";
-  document.getElementById('admin-modal-pro-email').innerText = pro.email || "Sin especificar";
-  document.getElementById('admin-modal-pro-category').innerText = pro.category || "Sin especificar";
-
-  const imgFront = document.getElementById('admin-modal-pro-dni-front');
-  const imgBack = document.getElementById('admin-modal-pro-dni-back');
-
-  const defaultFront = "https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&q=80&w=120&h=120";
-  const defaultBack = "https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&q=80&w=120&h=120";
-
-  if (imgFront) {
-    imgFront.src = pro.dniFrontImage || defaultFront;
-    imgFront.parentElement.onclick = () => window.openImageLightbox(imgFront.src, `DNI Frente: ${pro.name}`);
-  }
-  if (imgBack) {
-    imgBack.src = pro.dniBackImage || defaultBack;
-    imgBack.parentElement.onclick = () => window.openImageLightbox(imgBack.src, `DNI Dorso: ${pro.name}`);
-  }
-
-  const modal = document.getElementById('admin-approval-detail-modal');
-  if (modal) {
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-  }
-}
-
-window.setAdminDeskUserFilter = (filter) => {
-  activeAdminDeskUserFilter = filter;
-
-  const btnClients = document.getElementById('btn-admin-desk-filter-clients');
-  const btnPros = document.getElementById('btn-admin-desk-filter-pros');
-
-  if (btnClients && btnPros) {
-    btnClients.className = "flex-1 py-1.5 text-[10px] font-bold rounded-lg text-slate-400 hover:text-white transition-all uppercase tracking-wider";
-    btnPros.className = "flex-1 py-1.5 text-[10px] font-bold rounded-lg text-slate-400 hover:text-white transition-all uppercase tracking-wider";
-
-    if (filter === 'clients') {
-      btnClients.className = "flex-1 py-1.5 text-[10px] font-black rounded-lg text-slate-955 bg-brand-gold-500 transition-all uppercase tracking-wider";
-    } else {
-      btnPros.className = "flex-1 py-1.5 text-[10px] font-black rounded-lg text-slate-955 bg-brand-gold-500 transition-all uppercase tracking-wider";
-    }
-  }
-
-  // Ocultar dossier por defecto al cambiar pestaña
-  document.getElementById('admin-desk-profile-dossier-empty').classList.remove('hidden');
-  document.getElementById('admin-desk-profile-dossier-active').classList.add('hidden');
-  state.activeAdminDeskProfileId = null;
-
-  renderAdminUsers();
-};
-
-window.filterAdminDeskUsers = () => {
-  const searchInput = document.getElementById('admin-desk-search-user');
-  activeAdminDeskSearchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-  renderAdminUsers();
-};
-
-function renderAdminUsers() {
-  const container = document.getElementById('admin-desk-user-list-container');
-  if (!container) return;
-  container.innerHTML = '';
-
-  if (activeAdminDeskUserFilter === 'clients') {
-    const clients = state.users.filter(u => {
-      const matchRole = u.role === 'client';
-      const matchSearch = u.name.toLowerCase().includes(activeAdminDeskSearchTerm) || u.email.toLowerCase().includes(activeAdminDeskSearchTerm);
-      return matchRole && matchSearch;
-    });
-
-    if (clients.length === 0) {
-      container.innerHTML = `<div class="text-center text-xs text-slate-550 py-8 italic">No hay clientes.</div>`;
-      return;
-    }
-
-    clients.forEach(u => {
-      const card = document.createElement('button');
-      const isActive = String(state.activeAdminDeskProfileId) === String(u.email);
-      card.className = `w-full text-left p-2.5 rounded-xl border flex items-center gap-2.5 transition text-xs ${
-        isActive ? 'bg-slate-800 border-brand-gold-500/40 text-white' : 'bg-slate-950/40 border-slate-850 hover:bg-slate-900/60 text-slate-300'
-      }`;
-      
-      card.onclick = () => {
-        selectAdminDeskProfile(u.email, false);
-      };
-
-      card.innerHTML = `
-        <div class="w-8 h-8 rounded-full bg-slate-850 flex items-center justify-center font-bold text-[10px] border border-slate-700 text-slate-400">
-          CL
-        </div>
-        <div class="flex-grow min-w-0">
-          <h4 class="font-extrabold text-[11px] truncate flex items-center gap-1.5">
-            ${u.name}
-            ${u.banned ? '<span class="bg-red-955 text-red-400 text-[7px] font-black uppercase px-1 rounded">Baneado</span>' : ''}
-          </h4>
-          <span class="text-[9px] text-slate-500 truncate block">${u.email}</span>
-        </div>
-      `;
-      container.appendChild(card);
-    });
-  } else {
-    const pros = state.professionals.filter(pro => {
-      const matchSearch = pro.name.toLowerCase().includes(activeAdminDeskSearchTerm) || pro.email.toLowerCase().includes(activeAdminDeskSearchTerm) || pro.category.toLowerCase().includes(activeAdminDeskSearchTerm);
-      return matchSearch;
-    });
-
-    if (pros.length === 0) {
-      container.innerHTML = `<div class="text-center text-xs text-slate-550 py-8 italic">No hay socios.</div>`;
-      return;
-    }
-
-    pros.forEach(p => {
-      const card = document.createElement('button');
-      const isActive = state.activeAdminDeskProfileId === p.id;
-      
-      let badgeHTML = '';
-      if (p.verified) {
-        badgeHTML = `<span class="bg-green-500/10 text-green-400 text-[8px] font-black uppercase px-1 rounded">Verificado</span>`;
-      } else if (p.verificationStatus === 'pending') {
-        badgeHTML = `<span class="bg-amber-500/10 text-amber-500 text-[8px] font-black uppercase px-1 rounded">Pendiente</span>`;
-      }
-
-      // Buscar si el prestador correspondiente en state.users está baneado
-      const matchedUser = state.users.find(u => u.email.toLowerCase() === p.email.toLowerCase());
-      const isBanned = matchedUser ? matchedUser.banned : false;
-
-      card.className = `w-full text-left p-2.5 rounded-xl border flex items-center gap-2.5 transition text-xs ${
-        isActive ? 'bg-slate-800 border-brand-gold-500/40 text-white' : 'bg-slate-950/40 border-slate-850 hover:bg-slate-900/60 text-slate-300'
-      }`;
-      
-      card.onclick = () => {
-        selectAdminDeskProfile(p.id, true);
-      };
-
-      card.innerHTML = `
-        <img src="${p.avatar}" class="w-8 h-8 rounded-full object-cover border border-slate-700 bg-slate-950">
-        <div class="flex-grow min-w-0">
-          <h4 class="font-extrabold text-[11px] truncate flex items-center gap-1.5">
-            ${p.name}
-            ${isBanned ? '<span class="bg-red-955 text-red-400 text-[7px] font-black uppercase px-1 rounded">Baneado</span>' : ''}
-          </h4>
-          <span class="text-[9px] text-brand-gold-500 truncate block">${p.category}</span>
-        </div>
-        <div class="flex items-center gap-1 shrink-0">
-          ${badgeHTML}
-        </div>
-      `;
-      container.appendChild(card);
-    });
-  }
-}
-
-function selectAdminDeskProfile(profileId, isPro) {
-  state.activeAdminDeskProfileId = profileId;
-  state.activeAdminDeskProfileIsPro = isPro;
-
-  // Actualizar selección en la lista
-  renderAdminUsers();
-
-  document.getElementById('admin-desk-profile-dossier-empty').classList.add('hidden');
-  const dossierActive = document.getElementById('admin-desk-profile-dossier-active');
-  dossierActive.classList.remove('hidden');
-
-  let dossierUserObj;
-  let dossierProObj;
-
-  if (isPro) {
-    dossierProObj = state.professionals.find(p => p.id === profileId);
-    if (dossierProObj) {
-      dossierUserObj = state.users.find(u => u.email.toLowerCase() === dossierProObj.email.toLowerCase());
-    }
-  } else {
-    dossierUserObj = state.users.find(u => u.email.toLowerCase() === String(profileId).toLowerCase());
-  }
-
-  if (!dossierUserObj && !dossierProObj) return;
-
-  const avatar = document.getElementById('admin-dossier-avatar');
-  const name = document.getElementById('admin-dossier-name');
-  const email = document.getElementById('admin-dossier-email');
-  const badgeRole = document.getElementById('admin-dossier-badge-role');
-  const badgeVerified = document.getElementById('admin-dossier-badge-verified');
-
-  const infoId = document.getElementById('admin-dossier-info-id');
-  const infoPhone = document.getElementById('admin-dossier-info-phone');
-  const infoSpecialty = document.getElementById('admin-dossier-info-specialty');
-  const infoPrice = document.getElementById('admin-dossier-info-price');
-  const infoPassword = document.getElementById('admin-dossier-info-password');
-  const infoAddress = document.getElementById('admin-dossier-info-address');
-
-  const btnVerify = document.getElementById('btn-admin-dossier-action-verify');
-  const btnBanText = document.getElementById('admin-dossier-ban-text');
-  const btnBan = document.getElementById('btn-admin-dossier-action-ban');
-
-  // Rellenar cabecera dossier
-  if (isPro && dossierProObj) {
-    if (avatar) avatar.src = dossierProObj.avatar;
-    if (name) name.innerText = dossierProObj.name;
-    if (email) email.innerText = dossierProObj.email;
-    if (badgeRole) {
-      badgeRole.className = "text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-brand-gold-500/10 border border-brand-gold-500/20 text-brand-gold-500";
-      badgeRole.innerText = "Socio Profesional";
-    }
-
-    if (badgeVerified) {
-      badgeVerified.classList.remove('hidden');
-      if (dossierProObj.verified) {
-        badgeVerified.className = "text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-green-400";
-        badgeVerified.innerText = "Verificado";
-      } else if (dossierProObj.verificationStatus === 'pending') {
-        badgeVerified.className = "text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-500";
-        badgeVerified.innerText = "Pendiente DNI";
-      } else {
-        badgeVerified.className = "text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-red-400";
-        badgeVerified.innerText = "No Verificado";
-      }
-    }
-
-    if (infoId) infoId.innerText = dossierProObj.id;
-    if (infoPhone) infoPhone.innerText = dossierProObj.phone || 'Sin tel';
-    if (infoSpecialty) infoSpecialty.innerText = `${dossierProObj.category} • ${dossierProObj.specialty || 'General'}`;
-    if (infoPrice) infoPrice.innerText = `$${dossierProObj.price.toLocaleString('es-AR')}`;
-    if (infoPassword) infoPassword.innerText = dossierUserObj ? (dossierUserObj.password || 'Sin clave') : 'Sin clave';
-    if (infoAddress) infoAddress.innerText = `${dossierProObj.address || 'Sin local'} (${dossierProObj.location.lat.toFixed(4)}, ${dossierProObj.location.lng.toFixed(4)})`;
-
-    if (btnVerify) btnVerify.classList.remove('hidden');
-  } else if (dossierUserObj) {
-    // Es Cliente
-    if (avatar) avatar.src = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=120&h=120"; // Avatar generico
-    if (name) name.innerText = dossierUserObj.name;
-    if (email) email.innerText = dossierUserObj.email;
-    if (badgeRole) {
-      badgeRole.className = "text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400";
-      badgeRole.innerText = "Cliente de la App";
-    }
-    if (badgeVerified) badgeVerified.classList.add('hidden'); // Clientes no llevan DNI por ahora
-
-    if (infoId) infoId.innerText = dossierUserObj.email;
-    if (infoPhone) infoPhone.innerText = dossierUserObj.phone || 'Sin tel';
-    if (infoSpecialty) infoSpecialty.innerText = "N/A (Usuario Final)";
-    if (infoPrice) infoPrice.innerText = "N/A";
-    if (infoPassword) infoPassword.innerText = dossierUserObj.password || 'Sin clave';
-    if (infoAddress) infoAddress.innerText = "Posadas, Misiones";
-
-    if (btnVerify) btnVerify.classList.add('hidden');
-  }
-
-  // Configurar módulo de apelación si existe
-  const appealCard = document.getElementById('admin-dossier-appeal-card');
-  const appealTextLbl = document.getElementById('admin-dossier-appeal-text');
-  const appealImgBox = document.getElementById('admin-dossier-appeal-img-box');
-  const appealImg = document.getElementById('admin-dossier-appeal-img');
-  const btnAcceptAppeal = document.getElementById('btn-admin-accept-appeal');
-  const btnRejectAppeal = document.getElementById('btn-admin-reject-appeal');
-
-  const userToBan = dossierUserObj || (dossierProObj ? state.users.find(u => u.email.toLowerCase() === dossierProObj.email.toLowerCase()) : null);
-
-  if (userToBan && userToBan.banned && userToBan.appealStatus === 'pending') {
-    if (appealCard) appealCard.classList.remove('hidden');
-    if (appealTextLbl) appealTextLbl.innerText = `"${userToBan.appealText || 'Sin descargos redactados.'}"`;
-    
-    if (userToBan.appealImage && appealImgBox && appealImg) {
-      appealImgBox.classList.remove('hidden');
-      appealImg.src = userToBan.appealImage;
-      appealImg.parentElement.onclick = () => {
-        window.openImageLightbox(userToBan.appealImage, `Prueba de Apelación: ${userToBan.name}`);
-      };
-    } else if (appealImgBox) {
-      appealImgBox.classList.add('hidden');
-    }
-
-    if (btnAcceptAppeal) {
-      btnAcceptAppeal.onclick = () => {
-        userToBan.banned = false;
-        userToBan.banReason = null;
-        userToBan.appealStatus = 'accepted';
-        saveToLocalStorage();
-        showToast("✅ Apelación Aceptada", `Se levantó la sanción a ${userToBan.name}.`, "success");
-        renderAdminUsers();
-        selectAdminDeskProfile(profileId, isPro);
-      };
-    }
-
-    if (btnRejectAppeal) {
-      btnRejectAppeal.onclick = () => {
-        userToBan.appealStatus = 'rejected';
-        saveToLocalStorage();
-        showToast("❌ Apelación Rechazada", `La sanción a ${userToBan.name} se mantiene firme.`, "warning");
-        renderAdminUsers();
-        selectAdminDeskProfile(profileId, isPro);
-      };
-    }
-  } else {
-    if (appealCard) appealCard.classList.add('hidden');
-  }
-
-  // Configurar botón banear
-  if (userToBan) {
-    if (btnBanText) btnBanText.innerText = userToBan.banned ? "Activar Cuenta" : "Banear Usuario";
-    if (btnBan) {
-      if (userToBan.banned) {
-        btnBan.className = "bg-green-500 hover:bg-green-600 text-slate-950 font-extrabold py-2 px-4 rounded-xl text-xs transition active:scale-95 flex items-center gap-1.5";
-        btnBan.onclick = () => {
-          userToBan.banned = false;
-          userToBan.banReason = null;
-          userToBan.appealStatus = null;
-          saveToLocalStorage();
-          showToast("✅ Cuenta Reactivada", `Se eliminó la suspensión de ${userToBan.name}.`, "success");
-          renderAdminUsers();
-          selectAdminDeskProfile(profileId, isPro);
-        };
-      } else {
-        btnBan.className = "bg-red-955/20 border border-red-900/40 text-red-400 hover:bg-red-955/35 font-extrabold py-2 px-4 rounded-xl text-xs transition active:scale-95 flex items-center gap-1.5";
-        btnBan.onclick = () => {
-          openAdminBanModal(userToBan, () => {
-            renderAdminUsers();
-            selectAdminDeskProfile(profileId, isPro);
-          });
-        };
-      }
-    }
-  }
-
-  lucide.createIcons();
-}
-
-function renderAdminDeskChats() {
-  const container = document.getElementById('admin-desk-chat-threads-container');
-  if (!container) return;
-  container.innerHTML = '';
-
-  const chats = state.chats.filter(c => {
-    const matchedClient = state.users.find(u => u.email.toLowerCase() === c.clientEmail.toLowerCase());
-    const matchedPro = state.professionals.find(p => p.id === c.proId);
-
-    const clientName = matchedClient ? matchedClient.name : c.clientEmail;
-    const proName = matchedPro ? matchedPro.name : `Socio #${c.proId}`;
-
-    const matchSearch = clientName.toLowerCase().includes(activeAdminDeskChatSearchTerm) || proName.toLowerCase().includes(activeAdminDeskChatSearchTerm) || c.clientEmail.toLowerCase().includes(activeAdminDeskChatSearchTerm);
-    return matchSearch;
-  });
-
-  if (chats.length === 0) {
-    container.innerHTML = `<div class="text-center text-xs text-slate-555 py-8 italic">No hay conversaciones.</div>`;
-    return;
-  }
-
-  chats.forEach(c => {
-    const matchedClient = state.users.find(u => u.email.toLowerCase() === c.clientEmail.toLowerCase());
-    const matchedPro = state.professionals.find(p => p.id === c.proId);
-
-    const clientName = matchedClient ? matchedClient.name : c.clientEmail;
-    const proName = matchedPro ? matchedPro.name : `Socio #${c.proId}`;
-
-    const lastMsg = c.messages.length > 0 ? c.messages[c.messages.length - 1].text : 'Sin mensajes';
-    const isActive = String(state.activeAdminDeskChatId) === String(c.id);
-
-    const btn = document.createElement('button');
-    btn.className = `w-full text-left p-3 rounded-xl border flex flex-col gap-1 transition text-xs ${
-      isActive ? 'bg-slate-800 border-brand-gold-500/40 text-white' : 'bg-slate-950/40 border-slate-850 hover:bg-slate-900/60 text-slate-350'
-    }`;
-
-    btn.onclick = () => {
-      selectAdminDeskChat(c.id);
-    };
-
-    btn.innerHTML = `
-      <div class="flex justify-between items-center">
-        <span class="font-extrabold text-[10px] text-white truncate">${clientName} ↔ ${proName}</span>
-        <span class="text-[8px] text-slate-500">${c.messages.length} msgs</span>
-      </div>
-      <p class="text-[9px] text-slate-500 truncate leading-snug">${lastMsg}</p>
-    `;
-    container.appendChild(btn);
-  });
-}
-
-window.filterAdminDeskChats = () => {
-  const searchInput = document.getElementById('admin-desk-search-chat');
-  activeAdminDeskChatSearchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-  renderAdminDeskChats();
-};
-
-function selectAdminDeskChat(chatId) {
-  state.activeAdminDeskChatId = chatId;
-
-  // Refresh thread selection list
-  renderAdminDeskChats();
-
-  document.getElementById('admin-desk-chat-auditor-empty').classList.add('hidden');
-  const auditorActive = document.getElementById('admin-desk-chat-auditor-active');
-  auditorActive.classList.remove('hidden');
-
-  const chat = state.chats.find(c => String(c.id) === String(chatId));
-  const messagesContainer = document.getElementById('admin-desk-chat-messages-container');
-
-  if (!chat || !messagesContainer) return;
-
-  const matchedClient = state.users.find(u => u.email.toLowerCase() === chat.clientEmail.toLowerCase());
-  const matchedPro = state.professionals.find(p => p.id === chat.proId);
-
-  const clientName = matchedClient ? matchedClient.name : chat.clientEmail;
-  const proName = matchedPro ? matchedPro.name : `Socio #${chat.proId}`;
-
-  document.getElementById('admin-auditor-participants').innerText = `${clientName} ↔ ${proName}`;
-
-  messagesContainer.innerHTML = '';
-
-  if (chat.messages.length === 0) {
-    messagesContainer.innerHTML = `<div class="text-center text-xs text-slate-550 py-12 italic">El chat no tiene mensajes registrados.</div>`;
-    return;
-  }
-
-  chat.messages.forEach(msg => {
-    const isPro = msg.sender === 'pro';
-    const wrapper = document.createElement('div');
-    wrapper.className = `flex ${isPro ? 'justify-end' : 'justify-start'} w-full`;
-
-    const bubble = document.createElement('div');
-    if (isPro) {
-      bubble.className = "max-w-[70%] bg-slate-900 border border-slate-800 rounded-2xl rounded-tr-none p-2.5 text-xs text-slate-200";
-    } else {
-      bubble.className = "max-w-[70%] bg-brand-gold-500/10 border border-brand-gold-500/20 text-brand-gold-500 rounded-2xl rounded-tl-none p-2.5 text-xs";
-    }
-
-    bubble.innerHTML = `
-      <span class="text-[8px] font-black block uppercase tracking-wide mb-1 ${isPro ? 'text-slate-500' : 'text-brand-gold-500'}">
-        ${isPro ? proName : clientName}
-      </span>
-      <p class="leading-relaxed break-words">${msg.text}</p>
-    `;
-    wrapper.appendChild(bubble);
-    messagesContainer.appendChild(wrapper);
-  });
-
-  messagesContainer.scrollTop = messagesContainer.scrollHeight;
-}
-
-function renderAdminFinances() {
-  const tbody = document.getElementById('admin-desk-finances-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
-
-  const completedBookings = state.bookings.filter(b => b.status === 'Finalizado' || b.status === 'Calificado');
-
-  if (completedBookings.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="7" class="p-8 text-center text-xs text-slate-550 italic">
-          Aún no se han auditado transacciones o comisiones en el sistema.
-        </td>
-      </tr>
-    `;
-    return;
-  }
-
-  completedBookings.forEach(b => {
-    const commission = Math.round(b.price * 0.15);
-    const row = document.createElement('tr');
-    row.className = "border-b border-slate-850 hover:bg-slate-900/40 transition-colors";
-
-    row.innerHTML = `
-      <td class="p-3 font-mono text-[10px] text-slate-400">#${b.id}</td>
-      <td class="p-3 font-bold text-white">${b.proName}</td>
-      <td class="p-3 text-slate-450">${b.clientEmail || 'test@client.com'}</td>
-      <td class="p-3 font-semibold text-brand-gold-500">${b.category}</td>
-      <td class="p-3 font-bold text-white">$${b.price.toLocaleString('es-AR')}</td>
-      <td class="p-3 font-black text-green-400">+$${commission.toLocaleString('es-AR')}</td>
-      <td class="p-3">
-        <span class="text-[8px] font-black uppercase bg-green-500/10 border border-green-500/20 text-green-400 px-1.5 py-0.5 rounded">Completado</span>
-      </td>
-    `;
-    tbody.appendChild(row);
-  });
-}
-
-// Vincular oyentes de eventos explícitos a los botones de facturación del dashboard
-window.addEventListener('load', () => {
-  const bDay = document.getElementById('btn-dash-billing-day');
-  if (bDay) bDay.addEventListener('click', (e) => { e.stopPropagation(); window.openProBillingModal('day'); });
-
-  const bWeek = document.getElementById('btn-dash-billing-week');
-  if (bWeek) bWeek.addEventListener('click', (e) => { e.stopPropagation(); window.openProBillingModal('week'); });
-
-  const bMonth = document.getElementById('btn-dash-billing-month');
-  if (bMonth) bMonth.addEventListener('click', (e) => { e.stopPropagation(); window.openProBillingModal('month'); });
-
-  const bTotal = document.getElementById('btn-dash-billing-total');
-  if (bTotal) bTotal.addEventListener('click', (e) => { e.stopPropagation(); window.openProBillingModal('all'); });
-
-  const bHeader = document.getElementById('btn-dash-billing-header');
-  if (bHeader) bHeader.addEventListener('click', (e) => { e.stopPropagation(); window.openProBillingModal('all'); });
-});
