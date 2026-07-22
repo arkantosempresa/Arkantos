@@ -664,6 +664,8 @@ function applyRemoteSyncData(remoteData) {
     try { if (typeof renderAdminAppeals === 'function') renderAdminAppeals(); } catch(e) {}
     try { if (typeof checkCurrentBannedStatus === 'function') checkCurrentBannedStatus(); } catch(e) {}
     try { if (typeof checkIncomingEmergency === 'function') checkIncomingEmergency(); } catch(e) {}
+    try { if (typeof updateProVerificationUI === 'function') updateProVerificationUI(); } catch(e) {}
+    try { if (typeof syncProActivityUI === 'function') syncProActivityUI(); } catch(e) {}
     try { if (typeof renderActiveChat === 'function') renderActiveChat(); } catch(e) {}
 
   } catch (e) {
@@ -6674,7 +6676,7 @@ function checkIncomingEmergency() {
     const candidates = req.candidates || [];
     const currentTarget = candidates[req.currentIndex];
 
-    if (currentTarget && currentTarget.id === currentPro.id) {
+    if (currentTarget && (String(currentTarget.id) === String(currentPro.id) || (currentTarget.email && currentPro.email && currentTarget.email.toLowerCase().trim() === currentPro.email.toLowerCase().trim()))) {
       showProEmergencyBottomSheet(req);
     } else {
       hideProEmergencyBottomSheet();
