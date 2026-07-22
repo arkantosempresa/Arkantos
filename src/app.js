@@ -8238,11 +8238,88 @@ window.resetSystemDatabase = () => {
     return;
   }
 
-  localStorage.removeItem('arkantos_users');
-  localStorage.removeItem('arkantos_professionals');
-  localStorage.removeItem('arkantos_bookings');
-  localStorage.removeItem('arkantos_chats');
-  localStorage.removeItem('arkantos_favorites');
+  // 1. Restablecer el estado en memoria
+  state.users = [
+    { name: "Administrador", email: "admin@arkantos.com", password: "admin", role: "admin" }
+  ];
+  state.professionals = [
+    {
+      id: 1,
+      name: "Carlos Mendoza",
+      category: "Mecanicos",
+      specialty: "Inyección Electrónica y Frenos",
+      rating: 4.8,
+      reviewsCount: 42,
+      location: { lat: -27.3585, lng: -55.8920, neighborhood: "Villa Sarita" },
+      price: 18000,
+      atHome: true,
+      verified: true,
+      avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=120&h=120",
+      phone: "+54 376 412-3456",
+      agenda: {
+        Lunes: ["09:00", "15:00"],
+        Martes: ["10:00", "16:00"],
+        Miercoles: ["11:00", "17:00"]
+      }
+    },
+    {
+      id: 2,
+      name: "Ana Laura Silva",
+      category: "Peluqueros",
+      specialty: "Colorimetría y Estilo Unisex",
+      rating: 4.5,
+      reviewsCount: 18,
+      location: { lat: -27.3692, lng: -55.8955, neighborhood: "Microcentro" },
+      price: 12000,
+      atHome: false,
+      verified: true,
+      avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=120&h=120",
+      phone: "+54 376 498-7654",
+      agenda: {
+        Martes: ["09:00", "14:00"],
+        Jueves: ["10:00", "16:00"],
+        Sabado: ["09:00", "15:00"]
+      }
+    },
+    {
+      id: 3,
+      name: "Dr. Hugo Benítez",
+      category: "Abogados",
+      specialty: "Derecho Civil y Laboral",
+      rating: 4.9,
+      reviewsCount: 55,
+      location: { lat: -27.3520, lng: -55.8882, neighborhood: "El Brete" },
+      price: 25000,
+      atHome: false,
+      verified: true,
+      avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=120&h=120",
+      phone: "+54 376 433-2211",
+      agenda: {
+        Lunes: ["08:00", "16:00"],
+        Miercoles: ["08:00", "16:00"],
+        Viernes: ["08:00", "11:00"]
+      }
+    }
+  ];
+  state.bookings = [];
+  state.chats = [];
+  state.favorites = [];
 
-  window.location.reload();
+  // 2. Guardar en LocalStorage
+  localStorage.setItem('arkantos_users', JSON.stringify(state.users));
+  localStorage.setItem('arkantos_professionals', JSON.stringify(state.professionals));
+  localStorage.setItem('arkantos_bookings', JSON.stringify(state.bookings));
+  localStorage.setItem('arkantos_chats', JSON.stringify(state.chats));
+  localStorage.setItem('arkantos_favorites', JSON.stringify(state.favorites));
+
+  // 3. Forzar sincronización remota a Firebase
+  isRemoteSyncing = false;
+  pushStateToFirebase();
+
+  showToast("🔄 Sistema Restablecido", "La base de datos volvió a su estado inicial de fábrica y se sincronizó con Firebase.", "success");
+
+  // 4. Recargar después de 1 segundo
+  setTimeout(() => {
+    window.location.reload();
+  }, 1000);
 };
