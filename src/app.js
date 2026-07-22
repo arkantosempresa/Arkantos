@@ -509,6 +509,7 @@ function loadFromLocalStorage() {
 const firebaseConfig = {
   apiKey: "AIzaSyDroiA-zVWsauFDXFWUfY5H0gxmKOo67k4",
   authDomain: "arkantos-app.firebaseapp.com",
+  databaseURL: "https://arkantos-app-default-rtdb.firebaseio.com",
   projectId: "arkantos-app",
   storageBucket: "arkantos-app.firebasestorage.app",
   messagingSenderId: "304387636991",
