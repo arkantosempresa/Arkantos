@@ -256,24 +256,6 @@ function formatBookingDate(dateStr) {
   return dateStr;
 }
 
-window.finalizeBooking = (bookingId) => {
-  const booking = state.bookings.find(b => String(b.id) === String(bookingId));
-  if (!booking) return;
-
-  booking.status = "Finalizado";
-  saveToLocalStorage();
-
-  showToast(
-    "🎉 Servicio Completado",
-    "¡Buen trabajo! El servicio ha sido marcado como completado y movido al historial.",
-    "success"
-  );
-
-  updateDashboardMetrics();
-  renderProCalendar();
-  renderProfessionals();
-};
-
 function renderProHistory() {
   const listContainer = document.getElementById('pro-history-list');
   if (!listContainer) return;
@@ -428,6 +410,23 @@ function loadFromLocalStorage() {
       localStorage.setItem('arkantos_current_user', JSON.stringify(state.currentUser));
     }
   }
+
+  // Migración: si hay reservas finalizadas/calificadas sin método de pago, asignarles 'cash' y calcular la deuda
+  state.bookings.forEach(b => {
+    if ((b.status === "Finalizado" || b.status === "Calificado") && !b.paymentMethod) {
+      b.paymentMethod = 'cash';
+    }
+  });
+
+  // Re-sincronizar deudas acumuladas de profesionales basadas en reservas en efectivo
+  state.professionals.forEach(p => {
+    const cashBookings = state.bookings.filter(b => b.proId === p.id && (b.status === "Finalizado" || b.status === "Calificado") && b.paymentMethod === 'cash');
+    const totalCashCommission = cashBookings.reduce((sum, b) => sum + Math.round((b.price || b.total || 0) * 0.15), 0);
+    
+    if (typeof p.cashDebt === 'undefined' || (p.cashDebt === 0 && totalCashCommission > 0)) {
+      p.cashDebt = totalCashCommission;
+    }
+  });
 }
 
 function saveToLocalStorage() {
@@ -3620,11 +3619,11 @@ window.finalizeBooking = (bookingId) => {
 state.activeSelectedPaymentMethod = 'card';
 
 window.openPaymentMethodModal = () => {
-  const { proId, day, time } = state.selectedBooking;
+  const { proId, day, time, agreedPrice } = state.selectedBooking;
   const pro = state.professionals.find(p => p.id === proId);
   if (!pro) return;
 
-  const basePrice = pro.price;
+  const basePrice = agreedPrice || pro.price;
   const commission = Math.round(basePrice * 0.15);
   const total = basePrice + commission;
 
@@ -3677,13 +3676,13 @@ window.selectPaymentMethodOption = (method) => {
 };
 
 window.processFinalBookingWithPayment = () => {
-  const { proId, day, time } = state.selectedBooking;
+  const { proId, day, time, agreedPrice } = state.selectedBooking;
   if (!proId || !day || !time) return;
 
   const pro = state.professionals.find(p => p.id === proId);
   if (!pro) return;
 
-  const basePrice = pro.price;
+  const basePrice = agreedPrice || pro.price;
   const commission = Math.round(basePrice * 0.15);
   const total = basePrice + commission;
   const method = state.activeSelectedPaymentMethod || 'card';
@@ -3699,10 +3698,30 @@ window.processFinalBookingWithPayment = () => {
     time: time,
     price: basePrice,
     total: total,
-    status: "Pendiente",
+    status: agreedPrice ? "Finalizado" : "Pendiente",
     paymentMethod: method,
     paymentStatus: method === 'card' ? 'Paid' : 'Pending'
   };
+
+  // Si ya es un servicio finalizado (aceptado desde chat), aplicar comisión/deuda de inmediato
+  if (newBooking.status === "Finalizado") {
+    if (typeof pro.cashDebt === 'undefined') pro.cashDebt = 0;
+    if (method === 'cash') {
+      pro.cashDebt += commission;
+      showToast("💵 Presupuesto Aceptado (Efectivo)", `Monto: $${basePrice.toLocaleString('es-AR')}. +$${commission.toLocaleString('es-AR')} de comisión acumulada en tu saldo adeudado.`, "success");
+    } else {
+      let debtDeducted = 0;
+      if (pro.cashDebt > 0) {
+        debtDeducted = Math.min(pro.cashDebt, basePrice - commission);
+        pro.cashDebt -= debtDeducted;
+      }
+      if (debtDeducted > 0) {
+        showToast("💳 Presupuesto Aceptado (Tarjeta)", `Cobro digital. Se descontaron $${debtDeducted.toLocaleString('es-AR')} de tu saldo adeudado con Arkantos.`, "success");
+      } else {
+        showToast("💳 Presupuesto Aceptado (Tarjeta)", `Cobro digital acreditado. 15% de comisión ($${commission.toLocaleString('es-AR')}) debitado a la app.`, "success");
+      }
+    }
+  }
 
   state.bookings.push(newBooking);
   saveToLocalStorage();
@@ -3711,11 +3730,13 @@ window.processFinalBookingWithPayment = () => {
 
   const methodText = method === 'card' ? '💳 Tarjeta/Mercado Pago' : '💵 Efectivo en Mano';
 
-  showToast(
-    "¡Turno Agendado!", 
-    `Turno enviado a ${pro.name} (${methodText}).`, 
-    "success"
-  );
+  if (newBooking.status !== "Finalizado") {
+    showToast(
+      "¡Turno Agendado!", 
+      `Turno enviado a ${pro.name} (${methodText}).`, 
+      "success"
+    );
+  }
 
   renderClientBookings();
 
@@ -3980,13 +4001,21 @@ function renderProUberBillingData(selectedTimeframe) {
         const com = Math.round(price * 0.15);
         const net = price - com;
 
+        const isCash = b.paymentMethod === 'cash';
+        const methodBadge = isCash 
+          ? `<span class="text-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold">💵 Efectivo</span>`
+          : `<span class="text-[8px] bg-brand-gold-500/10 text-brand-gold-500 border border-brand-gold-500/25 px-1.5 py-0.5 rounded font-bold">💳 Tarjeta</span>`;
+
         item.innerHTML = `
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-xl bg-green-500/10 border border-green-500/30 flex items-center justify-center text-green-400 font-bold shrink-0">
               <i data-lucide="check" class="w-4 h-4"></i>
             </div>
             <div>
-              <h4 class="font-extrabold text-white text-xs">${b.clientName || 'Cliente Particular'}</h4>
+              <div class="flex items-center gap-1.5">
+                <h4 class="font-extrabold text-white text-xs">${b.clientName || 'Cliente Particular'}</h4>
+                ${methodBadge}
+              </div>
               <span class="text-[9px] text-slate-500 block">${b.category || 'Servicio'} • ${b.date || 'Hoy'} (${b.time || '12:00'} hs)</span>
             </div>
           </div>
@@ -5983,26 +6012,14 @@ function syncAgreedPriceToBookings(chat, price) {
   const dateStr = now.toISOString().split('T')[0];
   const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
 
-  const booking = {
-    id: Date.now() + Math.floor(Math.random() * 1000),
+  state.selectedBooking = {
     proId: chat.proId,
-    proName: chat.proName,
-    clientEmail: chat.clientEmail,
-    clientName: chat.clientName,
-    category: pro ? pro.category : "Servicios",
-    price: price,
-    total: price,
-    date: dateStr,
+    day: dateStr,
     time: timeStr,
-    status: "Finalizado"
+    agreedPrice: price
   };
 
-  state.bookings.push(booking);
-
-  saveToLocalStorage();
-  updateDashboardMetrics();
-  renderProCalendar();
-  renderClientBookings();
+  window.openPaymentMethodModal();
 }
 
 function sendEmergencyToPro(pro, req) {
