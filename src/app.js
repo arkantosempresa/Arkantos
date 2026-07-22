@@ -476,6 +476,14 @@ function loadFromLocalStorage() {
     state.receivedEmergency = null;
   }
 
+  // Cargar SOS activo
+  const storedSosReq = localStorage.getItem('arkantos_active_sos_request');
+  if (storedSosReq) {
+    state.activeSosRequest = JSON.parse(storedSosReq);
+  } else {
+    state.activeSosRequest = null;
+  }
+
   // Cargar sesión activa
   const storedAuth = localStorage.getItem('arkantos_is_authenticated');
   if (storedAuth === 'true') {
@@ -581,6 +589,38 @@ function applyRemoteSyncData(remoteData) {
     localStorage.setItem('arkantos_chats', JSON.stringify(state.chats));
     localStorage.setItem('arkantos_favorites', JSON.stringify(state.favorites));
 
+    if (remoteData.activeSosRequest !== undefined) {
+      const oldReq = state.activeSosRequest;
+      state.activeSosRequest = remoteData.activeSosRequest;
+
+      // Persistir SOS activo localmente
+      localStorage.setItem('arkantos_active_sos_request', state.activeSosRequest ? JSON.stringify(state.activeSosRequest) : '');
+
+      // Comprobar si somos un cliente que envió esta solicitud y fue aceptada
+      if (state.activeSosRequest && state.activeView === 'client') {
+        const clientEmail = state.currentUser ? state.currentUser.email : '';
+        if (state.activeSosRequest.clientEmail === clientEmail && state.activeSosRequest.status === 'accepted') {
+          // El SOS fue aceptado
+          const acceptedProId = state.activeSosRequest.acceptedProId;
+          const acceptedProName = state.activeSosRequest.acceptedProName;
+          
+          window.endSosSearch(false);
+          showToast("✅ Emergencia Aceptada", `${acceptedProName} ha aceptado tu auxilio y está en camino.`, "success");
+
+          // Abrir chat del profesional correspondiente
+          const matchedPro = state.professionals.find(p => p.id === acceptedProId);
+          if (matchedPro) {
+            setTimeout(() => {
+              switchView('client');
+              switchClientSubview('chat');
+              let chat = state.chats.find(c => c.proId === matchedPro.id && c.clientEmail.toLowerCase() === clientEmail.toLowerCase());
+              if (chat) openClientChatWindow(chat);
+            }, 1000);
+          }
+        }
+      }
+    }
+
     try { if (typeof renderProfessionals === 'function') renderProfessionals(); } catch(e) {}
     try { if (typeof renderInstantProviders === 'function') renderInstantProviders(); } catch(e) {}
     try { if (typeof renderClientBookings === 'function') renderClientBookings(); } catch(e) {}
@@ -588,6 +628,7 @@ function applyRemoteSyncData(remoteData) {
     try { if (typeof renderAdminUsers === 'function') renderAdminUsers(); } catch(e) {}
     try { if (typeof renderAdminAppeals === 'function') renderAdminAppeals(); } catch(e) {}
     try { if (typeof checkCurrentBannedStatus === 'function') checkCurrentBannedStatus(); } catch(e) {}
+    try { if (typeof checkIncomingEmergency === 'function') checkIncomingEmergency(); } catch(e) {}
     try { if (typeof renderActiveChat === 'function') renderActiveChat(); } catch(e) {}
 
   } catch (e) {
@@ -606,6 +647,7 @@ function pushStateToFirebase() {
     bookings: state.bookings,
     chats: state.chats,
     favorites: state.favorites,
+    activeSosRequest: state.activeSosRequest || null,
     lastUpdated: Date.now()
   };
 
@@ -642,6 +684,7 @@ function saveToLocalStorage() {
   localStorage.setItem('arkantos_chats', JSON.stringify(state.chats));
   localStorage.setItem('arkantos_favorites', JSON.stringify(state.favorites || []));
   localStorage.setItem('arkantos_received_emergency', JSON.stringify(state.receivedEmergency));
+  localStorage.setItem('arkantos_active_sos_request', state.activeSosRequest ? JSON.stringify(state.activeSosRequest) : '');
   localStorage.setItem('arkantos_is_authenticated', state.isAuthenticated ? 'true' : 'false');
   localStorage.setItem('arkantos_current_user', JSON.stringify(state.currentUser));
   updateChatBadges();
@@ -4783,12 +4826,11 @@ window.endSosSearch = function(cancelled = false) {
     modal.classList.remove('flex');
   }
 
+  if (window.clientSosInterval) clearInterval(window.clientSosInterval);
+
   if (state.activeSosRequest) {
-    if (state.activeSosRequest.timer) {
-      clearInterval(state.activeSosRequest.timer);
-      state.activeSosRequest.timer = null;
-    }
     state.activeSosRequest = null;
+    saveToLocalStorage(); // Sincroniza cancelación a Firebase
   }
 
   if (cancelled) {
@@ -4796,48 +4838,50 @@ window.endSosSearch = function(cancelled = false) {
   }
 };
 
-window.triggerNextSosCandidate = function() {
-  if (!state.activeSosRequest) return;
+window.startClientSosTimer = () => {
+  if (window.clientSosInterval) clearInterval(window.clientSosInterval);
 
-  const req = state.activeSosRequest;
-  if (req.timer) {
-    if (typeof req.timer === 'number') clearInterval(req.timer);
-    clearTimeout(req.timer);
-    req.timer = null;
-  }
+  window.clientSosInterval = setInterval(() => {
+    if (!state.activeSosRequest) {
+      clearInterval(window.clientSosInterval);
+      return;
+    }
 
-  const candidates = req.candidates || [];
-  const statusLbl = document.getElementById('lbl-sos-searching-status');
+    const req = state.activeSosRequest;
+    if (req.status !== 'pending') {
+      clearInterval(window.clientSosInterval);
+      return;
+    }
 
-  if (candidates.length === 0) {
-    if (statusLbl) statusLbl.innerText = `Escaneando red de guardia de ${req.category}...`;
-    req.timer = setTimeout(() => {
-      window.endSosSearch(false);
-      showToast("⚠️ Sin Prestadores de Guardia", `No hay profesionales de ${req.category} con radar activo en este momento.`, "warning");
-    }, 3500);
-    return;
-  }
-
-  if (req.currentIndex >= candidates.length) {
-    window.endSosSearch(false);
-    showToast("⚠️ Sin Respuesta", "Ningún prestador de guardia aceptó la solicitud en este momento.", "warning");
-    return;
-  }
-
-  const currentPro = candidates[req.currentIndex];
-  req.countdown = 15;
-
-  if (statusLbl) {
-    statusLbl.innerText = `Contactando a ${currentPro.name} (${currentPro.category})...`;
-  }
-
-  req.timer = setInterval(() => {
     req.countdown--;
+
+    const pBar = document.getElementById('bar-sos-searching-progress');
+    const statusLbl = document.getElementById('lbl-sos-searching-status');
+    const currentPro = req.candidates[req.currentIndex];
+
+    if (pBar) {
+      pBar.style.width = `${(req.countdown / 15) * 100}%`;
+    }
+    if (statusLbl && currentPro) {
+      statusLbl.innerText = `Contactando a ${currentPro.name} (Expira en ${req.countdown}s)...`;
+    }
+
     if (req.countdown <= 0) {
-      clearInterval(req.timer);
-      req.timer = null;
+      clearInterval(window.clientSosInterval);
+      
       req.currentIndex++;
-      window.triggerNextSosCandidate();
+      if (req.currentIndex >= req.candidates.length) {
+        state.activeSosRequest = null;
+        saveToLocalStorage();
+
+        window.endSosSearch(false);
+        showToast("⚠️ Sin Respuesta", "Ningún prestador de guardia aceptó la solicitud en este momento.", "warning");
+      } else {
+        req.countdown = 15;
+        req.lastUpdateTimestamp = Date.now();
+        saveToLocalStorage();
+        window.startClientSosTimer();
+      }
     }
   }, 1000);
 };
@@ -4854,39 +4898,39 @@ window.submitSosRequest = function() {
   const detailInput = document.getElementById('client-sos-request-detail');
   const detail = detailInput ? detailInput.value.trim() : '';
 
-  // 1. Priorizar profesionales activos del rubro
-  let candidates = state.professionals.filter(p => p && p.active && matchCategory(p.category, selectedCategory));
-  
-  // 2. Si no hay activos en línea, incluir prestadores registrados del rubro
+  // 1. Filtrar los candidatos del rubro que estén en línea (radar activo)
+  const candidates = state.professionals.filter(p => p && p.active && matchCategory(p.category, selectedCategory));
+
   if (candidates.length === 0) {
-    candidates = state.professionals.filter(p => p && matchCategory(p.category, selectedCategory));
+    showToast("⚠️ Sin Prestadores de Guardia", `No hay profesionales de ${selectedCategory} con radar activo en este momento.`, "warning");
+    return;
   }
 
+  // 2. Crear la solicitud en el estado
   state.activeSosRequest = {
+    id: `sos-${Date.now()}`,
     category: selectedCategory,
     detail: detail || "Asistencia de urgencia requerida.",
-    candidates: candidates,
+    candidates: candidates.map(c => ({ id: c.id, name: c.name, email: c.email, category: c.category })),
     currentIndex: 0,
     clientName: state.currentUser ? state.currentUser.name : "Cliente Arkantos",
     clientEmail: state.currentUser ? state.currentUser.email : "guest@arkantos.com",
-    timer: null,
-    countdown: 15
+    status: 'pending',
+    countdown: 15,
+    lastUpdateTimestamp: Date.now()
   };
 
   const modal = document.getElementById('client-sos-searching-modal');
   if (modal) {
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    try { lucide.createIcons(); } catch (e) {}
   }
 
-  const statusLbl = document.getElementById('lbl-sos-searching-status');
-  if (statusLbl) {
-    statusLbl.innerText = `Conectando con la red de guardia de ${selectedCategory}...`;
-  }
-
-  window.triggerNextSosCandidate();
+  saveToLocalStorage(); // Sincroniza e inicia el temporizador
+  window.startClientSosTimer();
 };
+
+
 
 // --- EVENT LISTENERS GENERALES DEL CLIENTE ---
 function initClientEventListeners() {
@@ -6590,8 +6634,16 @@ function sendEmergencyToPro(pro, req) {
 
 function checkIncomingEmergency() {
   const currentPro = getCurrentPro();
-  if (state.activeView === 'professional' && currentPro && state.receivedEmergency && state.receivedEmergency.proId === currentPro.id) {
-    showProEmergencyBottomSheet(state.receivedEmergency);
+  if (state.activeView === 'professional' && currentPro && state.activeSosRequest && state.activeSosRequest.status === 'pending') {
+    const req = state.activeSosRequest;
+    const candidates = req.candidates || [];
+    const currentTarget = candidates[req.currentIndex];
+
+    if (currentTarget && currentTarget.id === currentPro.id) {
+      showProEmergencyBottomSheet(req);
+    } else {
+      hideProEmergencyBottomSheet();
+    }
   } else {
     hideProEmergencyBottomSheet();
   }
@@ -6627,7 +6679,7 @@ function showProEmergencyBottomSheet(emerg) {
     if (lbl) lbl.innerText = `${countdown}s`;
     if (countdown <= 0) {
       clearInterval(window.proEmergencyInterval);
-      hideProEmergencyBottomSheet();
+      window.rejectEmergencyRequest();
     }
   }, 1000);
 
@@ -6635,14 +6687,13 @@ function showProEmergencyBottomSheet(emerg) {
   const btnAccept = document.getElementById('btn-pro-accept-emergency');
   const btnReject = document.getElementById('btn-pro-reject-emergency');
 
-  // Clonar para limpiar event listeners previos
   const newAccept = btnAccept.cloneNode(true);
   const newReject = btnReject.cloneNode(true);
   btnAccept.parentNode.replaceChild(newAccept, btnAccept);
   btnReject.parentNode.replaceChild(newReject, btnReject);
 
-  newAccept.addEventListener('click', acceptEmergencyRequest);
-  newReject.addEventListener('click', rejectEmergencyRequest);
+  newAccept.addEventListener('click', window.acceptEmergencyRequest);
+  newReject.addEventListener('click', window.rejectEmergencyRequest);
 }
 
 function hideProEmergencyBottomSheet() {
@@ -6654,47 +6705,60 @@ function hideProEmergencyBottomSheet() {
   if (window.proEmergencyInterval) clearInterval(window.proEmergencyInterval);
 }
 
-function rejectEmergencyRequest() {
+window.rejectEmergencyRequest = () => {
   if (window.proEmergencyInterval) clearInterval(window.proEmergencyInterval);
   hideProEmergencyBottomSheet();
-
-  state.receivedEmergency = null;
-  saveToLocalStorage();
 
   const req = state.activeSosRequest;
   if (req) {
-    if (req.timer) clearInterval(req.timer);
     req.currentIndex++;
-    triggerNextSosCandidate();
-  }
-}
+    req.countdown = 15;
+    req.lastUpdateTimestamp = Date.now();
 
-function acceptEmergencyRequest() {
+    if (req.currentIndex >= req.candidates.length) {
+      req.status = 'rejected';
+    }
+
+    saveToLocalStorage();
+    showToast("🚫 Solicitud Rechazada", "Se pasó la solicitud al siguiente profesional disponible.", "info");
+  }
+};
+
+window.acceptEmergencyRequest = () => {
   if (window.proEmergencyInterval) clearInterval(window.proEmergencyInterval);
   hideProEmergencyBottomSheet();
 
-  const emerg = state.receivedEmergency;
-  if (!emerg) return;
+  const req = state.activeSosRequest;
+  if (!req) return;
 
-  const pro = state.professionals.find(p => p.id === emerg.proId);
+  const currentPro = getCurrentPro();
+  if (!currentPro) return;
+
+  req.status = 'accepted';
+  req.acceptedProId = currentPro.id;
+  req.acceptedProName = currentPro.name;
 
   // Crear conversación de chat
-  let chat = state.chats.find(c => c.proId === emerg.proId && c.clientEmail.toLowerCase() === emerg.clientEmail.toLowerCase());
+  const chatKey = `chat-${req.clientEmail}-${currentPro.email}`.replace(/\./g, '_');
+  let chat = state.chats.find(c => c.proId === currentPro.id && c.clientEmail.toLowerCase() === req.clientEmail.toLowerCase());
+
   if (!chat) {
     chat = {
-      id: Date.now(),
-      proId: emerg.proId,
-      proName: pro ? pro.name : "Prestador de Guardia",
-      clientEmail: emerg.clientEmail,
-      clientName: emerg.clientName,
+      id: chatKey,
+      proId: currentPro.id,
+      proName: currentPro.name,
+      clientEmail: req.clientEmail,
+      clientName: req.clientName,
       messages: [
         {
           sender: 'client',
-          text: `🚨 SOS URGENCIA REQUERIDA: ${emerg.detail}`
+          text: `🚨 SOS URGENCIA REQUERIDA: ${req.detail}`,
+          timestamp: Date.now()
         },
         {
           sender: 'pro',
-          text: `¡Hola! Acepté tu solicitud de emergencia. Ya estoy al tanto del problema. ¿Podrías darme más detalles así coordinamos el precio?`
+          text: `¡Hola! He aceptado tu solicitud de emergencia SOS. Ya estoy yendo a tu ubicación.`,
+          timestamp: Date.now() + 1000
         }
       ],
       unreadByClient: true,
@@ -6706,41 +6770,44 @@ function acceptEmergencyRequest() {
   } else {
     chat.messages.push({
       sender: 'client',
-      text: `🚨 SOS URGENCIA REQUERIDA: ${emerg.detail}`
+      text: `🚨 SOS URGENCIA REQUERIDA: ${req.detail}`,
+      timestamp: Date.now()
     });
     chat.messages.push({
       sender: 'pro',
-      text: `¡Hola! Acepté tu solicitud de emergencia. Ya estoy al tanto del problema. ¿Podrías darme más detalles así coordinamos el precio?`
+      text: `¡Hola! He aceptado tu solicitud de emergencia SOS. Ya estoy yendo a tu ubicación.`,
+      timestamp: Date.now() + 1000
     });
     chat.unreadByClient = true;
     chat.clientDeleted = false;
     chat.proDeleted = false;
   }
 
-  state.receivedEmergency = null;
-  state.activeSosRequest = null;
-  saveToLocalStorage();
+  // Crear la reserva también para el libro contable
+  const maxId = state.bookings.reduce((max, b) => (b && b.id > max) ? b.id : max, 0);
+  const newBooking = {
+    id: maxId + 1,
+    proId: currentPro.id,
+    proName: currentPro.name,
+    proCategory: currentPro.category,
+    clientName: req.clientName,
+    clientEmail: req.clientEmail,
+    date: new Date().toLocaleDateString('es-AR'),
+    time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+    status: "Confirmado",
+    price: currentPro.price || 15000,
+    paymentMethod: 'cash'
+  };
+  state.bookings.push(newBooking);
 
+  saveToLocalStorage();
   showToast("🚨 Trabajo Aceptado", "Guardia de emergencia aceptada con éxito.", "success");
 
-  // Redirigir ambos a la sección de chat
-  // Primero redirigimos la vista activa actual del profesional al chat
+  // Redirigir la vista activa del profesional al chat
   switchProSubView('chat');
   state.activeChatId = chat.id;
   renderChatMessages();
-
-  // Simular la transición del cliente al chat
-  setTimeout(() => {
-    switchView('client');
-    switchClientSubview('chat');
-    openClientChatWindow(chat);
-
-    const searchingModal = document.getElementById('client-sos-searching-modal');
-    if (searchingModal) {
-      searchingModal.classList.add('hidden');
-    }
-  }, 1000);
-}
+};
 
 function endSosSearch(cancelled, message) {
   const req = state.activeSosRequest;
