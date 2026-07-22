@@ -610,11 +610,24 @@ function pushStateToFirebase() {
   };
 
   if (firebaseDb) {
-    firebaseDb.ref('arkantos_global_state').set(payload).catch(e => console.warn("Sync RTDB:", e.message));
+    firebaseDb.ref('arkantos_global_state').set(payload)
+      .then(() => {
+        console.log("✅ Sincronizado con Firebase Realtime DB");
+      })
+      .catch(e => {
+        console.warn("Sync RTDB Error:", e.message);
+        showToast("⚠️ Alerta de Conexión", "No se pudo sincronizar con la base de datos de Firebase. Asegúrate de haber publicado las Reglas como 'true'.", "warning");
+      });
   }
 
   if (firebaseFirestore) {
-    firebaseFirestore.collection('app').doc('global_state').set(payload).catch(e => console.warn("Sync Firestore:", e.message));
+    firebaseFirestore.collection('app').doc('global_state').set(payload)
+      .then(() => {
+        console.log("✅ Sincronizado con Firebase Firestore");
+      })
+      .catch(e => {
+        console.warn("Sync Firestore Error:", e.message);
+      });
   }
 }
 
