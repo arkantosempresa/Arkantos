@@ -5014,32 +5014,7 @@ function renderClientBookings() {
   document.querySelectorAll('.btn-trigger-review').forEach(btn => {
     btn.addEventListener('click', () => {
       const bId = parseInt(btn.getAttribute('data-booking-id'));
-      state.activeReviewBookingId = bId;
-
-      state.pendingQualityRating = 5;
-      state.pendingAcceptanceRating = 5;
-      state.pendingTipAmount = 0; // Reset tip amount
-
-      document.querySelectorAll('#review-stars-quality .review-star-btn').forEach(b => {
-        b.className = "review-star-btn text-brand-gold-500 text-2xl cursor-pointer";
-      });
-
-      // Reset tip options visually
-      window.selectTipAmount(0, null);
-
-      const booking = state.bookings.find(b => b.id === bId);
-      const tipContainer = document.getElementById('review-tip-container');
-      if (tipContainer) {
-        if (booking && booking.paymentMethod === 'card') {
-          tipContainer.classList.remove('hidden');
-        } else {
-          tipContainer.classList.add('hidden');
-        }
-      }
-
-      const modal = document.getElementById('client-review-modal');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
+      openBookingReview(bId);
     });
   });
 }
@@ -5822,13 +5797,25 @@ function openBookingReview(bId) {
   state.activeReviewBookingId = parseInt(bId);
   state.pendingQualityRating = 5;
   state.pendingAcceptanceRating = 5;
-  
+  state.pendingTipAmount = 0; // Reset tip amount
+
   document.querySelectorAll('#review-stars-quality .review-star-btn').forEach(b => {
-    b.className = "review-star-btn text-brand-gold-500 text-2xl";
+    b.className = "review-star-btn text-brand-gold-500 text-2xl cursor-pointer";
   });
-  document.querySelectorAll('#review-stars-acceptance .accept-star-btn').forEach(b => {
-    b.className = "accept-star-btn text-brand-gold-500 text-2xl";
-  });
+
+  // Reset tip options visually
+  window.selectTipAmount(0, null);
+
+  const booking = state.bookings.find(b => b.id === parseInt(bId));
+  const tipContainer = document.getElementById('review-tip-container');
+  if (tipContainer) {
+    // Show tip section if payment method is card or undefined (default/test bookings)
+    if (booking && booking.paymentMethod === 'cash') {
+      tipContainer.classList.add('hidden');
+    } else {
+      tipContainer.classList.remove('hidden');
+    }
+  }
 
   const modal = document.getElementById('client-review-modal');
   if (modal) {
