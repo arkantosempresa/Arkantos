@@ -4122,7 +4122,7 @@ function renderProUberBillingData(selectedTimeframe) {
   if (elTitle) elTitle.innerHTML = titleHTML;
   if (elCount) elCount.innerText = `${activeCount} Trabajo${activeCount === 1 ? '' : 's'}`;
   if (elNet) elNet.innerText = `$${activeNet.toLocaleString('es-AR')}`;
-  if (elComision) elComision.innerText = `-$${activeComision.toLocaleString('es-AR')}`;
+  if (elComision) elComision.innerText = `$${activeComision.toLocaleString('es-AR')}`;
   if (elTips) elTips.innerText = `+$${activeTips.toLocaleString('es-AR')}`;
   if (elTotalTakehome) elTotalTakehome.innerText = `$${activeTotalTakehome.toLocaleString('es-AR')}`;
   if (elGross) elGross.innerText = `$${activeGross.toLocaleString('es-AR')}`;
@@ -4177,7 +4177,7 @@ function renderProUberBillingData(selectedTimeframe) {
           </div>
           <div class="text-right">
             <span class="text-xs font-black text-emerald-400 block">+$${rowTotal.toLocaleString('es-AR')}</span>
-            <span class="text-[8px] text-slate-500 block font-semibold">Bruto: $${price.toLocaleString('es-AR')} (Com: -$${com.toLocaleString('es-AR')}) ${tip > 0 ? `+ Propina: $${tip.toLocaleString('es-AR')}` : ''}</span>
+            <span class="text-[8px] text-slate-500 block font-semibold">Bruto: $${price.toLocaleString('es-AR')} (Com: $${com.toLocaleString('es-AR')}) ${tip > 0 ? `+ Propina: $${tip.toLocaleString('es-AR')}` : ''}</span>
           </div>
         `;
         historyList.appendChild(item);
@@ -4288,8 +4288,8 @@ function updateDashboardMetrics() {
 
   const appStatusEl = document.getElementById('app-balance-status');
   const debtEl = document.getElementById('lbl-balance-debt');
-  if (appStatusEl) appStatusEl.innerText = `- $${comision.toLocaleString('es-AR')}`;
-  if (debtEl) debtEl.innerText = `-$${comision.toLocaleString('es-AR')}`;
+  if (appStatusEl) appStatusEl.innerText = `$${comision.toLocaleString('es-AR')}`;
+  if (debtEl) debtEl.innerText = `$${comision.toLocaleString('es-AR')}`;
 
   const ratingEl = document.getElementById('lbl-pro-dash-rating');
   const posReviewsEl = document.getElementById('lbl-pro-dash-percent-pos');

@@ -2891,7 +2891,7 @@
             </div>
             <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-850">
               <span class="text-[8px] text-slate-500 font-extrabold uppercase block truncate">Comisión (15%):</span>
-              <span id="lbl-billing-active-comision" class="text-base font-black text-brand-gold-500">-$0</span>
+              <span id="lbl-billing-active-comision" class="text-base font-black text-brand-gold-500">$0</span>
               <span class="text-[7.5px] text-slate-500 font-semibold block mt-0.5">Retención App</span>
             </div>
             <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-850">
@@ -3182,7 +3182,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <!-- Core Logic Loader -->
-  <script src="src/app.js?v=24"></script>
+  <script src="src/app.js?v=25"></script>
 
   <!-- Script de Inicialización PWA Service Worker e Instalación App Web -->
   <script>
@@ -3190,7 +3190,7 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=24')
+        navigator.serviceWorker.register('./sw.js?v=25')
           .then(reg => {
             console.log('Service Worker ARKANTOS PWA listo:', reg);
             reg.update();
