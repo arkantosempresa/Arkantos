@@ -615,7 +615,43 @@ function applyRemoteSyncData(remoteData) {
     if (Array.isArray(remoteData.users)) state.users = remoteData.users;
     if (Array.isArray(remoteData.professionals)) state.professionals = remoteData.professionals;
     if (Array.isArray(remoteData.bookings)) state.bookings = remoteData.bookings;
-    if (Array.isArray(remoteData.chats)) state.chats = remoteData.chats;
+
+    if (Array.isArray(remoteData.chats)) {
+      remoteData.chats.forEach(newChat => {
+        const oldChat = state.chats.find(c => c.id === newChat.id);
+        const oldMsgCount = oldChat && oldChat.messages ? oldChat.messages.length : 0;
+        const newMsgCount = newChat.messages ? newChat.messages.length : 0;
+        
+        if (newMsgCount > oldMsgCount) {
+          const lastMsg = newChat.messages[newChat.messages.length - 1];
+          const isClient = state.activeView === 'client';
+          const isPro = state.activeView === 'professional';
+
+          if ((isClient && lastMsg.sender === 'pro') || (isPro && lastMsg.sender === 'client')) {
+            const senderName = isClient ? (newChat.proName || "Prestador de Arkantos") : (newChat.clientName || "Cliente de Arkantos");
+            const viewingThisChat = (isClient && state.activeClientChatId === newChat.id) || (isPro && state.activeChatId === newChat.id);
+            
+            if (!viewingThisChat) {
+              showInAppNotification(senderName, lastMsg.text, newChat.id, lastMsg.sender);
+              sendSystemNotification(senderName, lastMsg.text, newChat.id);
+            } else {
+              try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+              } catch(e) {}
+            }
+          }
+        }
+      });
+      state.chats = remoteData.chats;
+    }
     if (Array.isArray(remoteData.favorites)) state.favorites = remoteData.favorites;
 
     localStorage.setItem('arkantos_users', JSON.stringify(state.users));
@@ -8430,3 +8466,96 @@ window.resetSystemDatabase = () => {
     window.location.reload();
   }, 1000);
 };
+
+function renderActiveChat() {
+  if (state.activeView === 'client' && state.activeClientChatId) {
+    renderClientChatMessages();
+  } else if (state.activeView === 'professional' && state.activeChatId) {
+    renderChatMessages();
+  }
+}
+
+function showInAppNotification(senderName, messageText, chatId, senderRole) {
+  const existing = document.getElementById('in-app-notification-banner');
+  if (existing) existing.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'in-app-notification-banner';
+  banner.className = 'fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[9999] bg-slate-900/95 border border-slate-800 rounded-2xl p-4 shadow-2xl flex gap-3 items-center backdrop-blur-md cursor-pointer transition-all duration-300 transform -translate-y-24 opacity-0';
+  
+  banner.innerHTML = `
+    <div class="w-10 h-10 rounded-full bg-brand-gold-500/10 flex items-center justify-center text-brand-gold-500 shrink-0 shadow-inner">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-square"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </div>
+    <div class="flex-1 min-w-0">
+      <div class="flex justify-between items-baseline mb-0.5">
+        <span class="text-xs font-bold text-white">${senderName}</span>
+        <span class="text-[9px] text-slate-550 font-semibold uppercase">Ahora</span>
+      </div>
+      <p class="text-xs text-slate-350 truncate">${messageText}</p>
+    </div>
+    <button class="text-slate-500 hover:text-slate-300 p-1 transition" onclick="event.stopPropagation(); this.closest('#in-app-notification-banner').remove();">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+  `;
+
+  banner.addEventListener('click', () => {
+    banner.classList.add('-translate-y-24', 'opacity-0');
+    setTimeout(() => banner.remove(), 300);
+
+    if (state.activeView === 'client') {
+      switchClientSubview('chat');
+      const chat = state.chats.find(c => c.id === chatId);
+      if (chat) openClientChatWindow(chat);
+    } else if (state.activeView === 'professional') {
+      switchProSubView('chat');
+      state.activeChatId = chatId;
+      renderChatMessages();
+    }
+  });
+
+  document.body.appendChild(banner);
+
+  setTimeout(() => {
+    banner.classList.remove('-translate-y-24', 'opacity-0');
+    banner.classList.add('translate-y-0', 'opacity-100');
+  }, 100);
+
+  setTimeout(() => {
+    if (banner.parentNode) {
+      banner.classList.remove('translate-y-0', 'opacity-100');
+      banner.classList.add('-translate-y-24', 'opacity-0');
+      setTimeout(() => banner.remove(), 300);
+    }
+  }, 5000);
+}
+
+function sendSystemNotification(title, body, tag = 'chat') {
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "granted") {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification(title, {
+          body: body,
+          icon: './assets/icons/icon-192x192.png',
+          tag: tag,
+          renotify: true
+        });
+      });
+    } else {
+      new Notification(title, {
+        body: body,
+        icon: './assets/icons/icon-192x192.png',
+        tag: tag
+      });
+    }
+  }
+}
+
+// Escuchar click para activar permisos de notificaciones del navegador
+document.addEventListener('click', function requestNotificationPermissions() {
+  if ("Notification" in window && Notification.permission === "default") {
+    Notification.permission !== "denied" && Notification.requestPermission();
+  }
+  document.removeEventListener('click', requestNotificationPermissions);
+});
